@@ -36,13 +36,13 @@ def raw(msg):
 	
 
 def uptime(msg):
-	return('PRIVMSG $s :Uptime is %' %(msg.channel, msg.syscmd('uptime')))
+	return('PRIVMSG %s :Uptime is %s' %(msg.channel, msg.syscmd(['uptime']).decode()))
 	
 def hostname(msg):
-	return('PRIVMSG $s :Hostname is %' %(msg.channel, msg.syscmd('hostname')))
+	return('PRIVMSG %s :Hostname is %s' %(msg.channel, msg.syscmd(['hostname']).decode()))
 	
 def free(msg):
-	cmdresult = msg.syscmd('free')
+	cmdresult = msg.syscmd(['free']).decode()
 	out = ''
 	for line in cmdresult.split('\n')[:-1]:
 		outadd = 'PRIVMSG %s :%s\n' %(msg.channel, line)

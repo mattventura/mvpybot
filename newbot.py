@@ -228,7 +228,7 @@ def botmain(botsocket, conn, initconn):
 	# be called. This stuff gets mostly pre-processed so the contructor
 	# doesn't do much. 
 	class cmdMsg:
-		def __init__(self, channel, nick, botnick, cmd, syscmd, run, senddata, showdbg):
+		def __init__(self, channel, nick, botnick, cmd, run):
 			self.channel = channel
 			self.nick = nick
 			self.getlevel = getlevel
@@ -251,7 +251,7 @@ def botmain(botsocket, conn, initconn):
 
 	# Not much to do here, just passing in some useful functions
 	class periodic:
-		def __init__(self, socket, conninfo, senddata, numlevel, getlevel):
+		def __init__(self, socket, conninfo):
 			self.socket = socket
 			self.conninfo = conninfo
 			self.sendata = senddata
@@ -262,7 +262,7 @@ def botmain(botsocket, conn, initconn):
 	# Here, the constructor actually does stuff. 
 	# To-do: NICK events
 	class lineEvent:
-		def __init__(self, line, socket, conninfo, senddata, numlevel, getlevel):
+		def __init__(self, line, socket, conninfo ):
 			self.line = line.rstrip()
 			self.socket = socket
 			self.conninfo = conninfo
@@ -1091,7 +1091,7 @@ def botmain(botsocket, conn, initconn):
 						target = funcregistry[run]
 						l = target[0]
 						# Pass all this stuff in via our msgObj object
-						msgObj = cmdMsg(channel, sender, options.NICK, cmd, syscmd, run, senddata, showdbg)
+						msgObj = cmdMsg(channel, sender, options.NICK, cmd, run)
 						try: 
 							out = target[1](msgObj)
 							if (out.split(' ')[0] != 'PRIVMSG'):
@@ -1157,7 +1157,7 @@ def botmain(botsocket, conn, initconn):
 				for function in listenerregistry[type]:
 					l = function[0]
 					target = function[1]
-					periodicObj = periodic(s, conn, senddata, numlevel, getlevel)
+					periodicObj = periodic(s, conn)
 					try:
 						target(periodicObj)
 					except:
@@ -1174,7 +1174,7 @@ def botmain(botsocket, conn, initconn):
 				line = lines[0]		
 				lines.pop(0)
 				try:
-					e = lineEvent(line, s, conn, senddata, getlevel, getlevel)
+					e = lineEvent(line, s, conn)
 				except:
 					showdbg('Failed basic line parsing! Line: ' + line)
 					showErr(traceback.format_exc())
