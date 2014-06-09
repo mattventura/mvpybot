@@ -1,0 +1,256 @@
+MvPybot: An extensible IRC bot written in python
+
+Table of contents
+1: Admin documentation
+2: User documentation
+3: Module development documentation
+
+1: Admin documentation
+
+1.1: Initial setup and execution
+
+1. Extract files into a folder
+2. Make sure mvpybot.py and start.py are executable
+3. Edit options.py (see the pertinent section)
+4. Optionally edit config.py (see the pertinent section)
+
+To run the bot, execute start.py (you can also run mvpybot.py directly, but you lose features)
+
+1.2: options.py
+
+1.2.1: Basic settings
+
+Near the top of the file, you will find a 'NICK = ' line. Use this to edit the bot's nickname. Near the bottom, you will find an option to change the command prefix used to give the bot commands in a channel without prefixing the command with the bot's name. Lastly, there is a setting to enable or disable logging. 
+
+1.2.2: The connections block
+
+Here, you can define one or more connections (although the multi-server support is quite awkward so I recommend just using multiple, separate installations of the bot. There are three classes you can use to define a server: ircSrv, twIrc, and twIrcNt. 
+
+1.2.2.1: ircSrv
+
+Connects to a standard IRC server.
+
+Usage: ircSrv(server, [port], [password], [chanserv pass], [channels], [user], [mode], [realname]
+
+If an argument is ommitted, the behavior varies by argument. For passwords, it disables that functionality. For user and realname, it uses the nickname. For port, it assumes 6667. For mode, it assumes 8. For channels, it will not join any channels. ircSrv causes explicit auth to be used. 
+
+1.2.2.2: twIrc
+
+Connects to twitch.tv's chat IRC gateway. 
+
+Usage: twIrc(channels, authkey)
+
+It acts as a limited IRC interface to twitch chats. You do not need to specify a server, however, you will need your oauth key. See http://www.twitchapps.com/tmi/ 
+
+twIrc throttles outgoing messages to one every 2.5 seconds. 
+
+twIrc causes implicit auth to be used
+
+1.2.2.3: twIrcNt
+
+Non-throttling version of twIrc. Use this if you plan to make the bot a channel operator, since being an operator loosens many of the restrictions, making throttling unnecessary. 
+
+1.3: config.py
+
+config.py contains some strings and stuff that don't normally need to be changed, but can still be used to customize the bot. 
+
+* The various 'privreject' variables control the strings used when rejecting a command due to an underprivileged user. 
+* The privlog variables control what gets put in the console/log when that happens. 
+* privilegelevels controls the friendly names for numerical levels. You can add more here, but don't remove the ones already theere. 
+* debug is no longer used
+* cnf_enable enables or disables 'command not found' messages. This is disabled by default. 
+* defaulthelp is the text you get when you run 'help' with no arguments
+* simpleAuthNotice is the text displayed when you attempt to run an explicit auth command while the bot is using implicit auth
+
+1.4: Authentication
+
+The bot has 2 methods of authentication. Only one can be enabled at a time, and the one that is picked depends on the server type selected. 
+
+1.4.1: Implicit authentication
+
+Implicit is the default for twIrc. Implicit uses only the nickname of the user to authenticatee them. Users do not need to manually authenticate. This obviously is only secure in an environment where the user needs to authenticate in order to use that nickname in the first place, such as twitch. 
+
+Users and their levels are defined in the 'ausers' file. The format of this file is a nickname, followed by a single space character, followed by a numerical level for the user, followed by a newline. Do not put a newline at the end of the file. 
+
+1.4.2: Explicit authentication
+
+Explicit authentication is the default for standard IRC connections. The user must manually authenticate by messaging the bot a username and password, which the user can create using the 'register' command. 
+
+The format for the 'users' file used by explicit auth is a username, a space, a hashed password, a space, a numeric level, and a newline. The final line should not have a newline. 
+
+1.5: Modules
+
+Modules go in the 'modules' folder. You can put 'enabled = 0' in the top level of a module file to disable it (although the bot still has to read the file to begin with, so files with syntax errors may still cause issues). See the module development section for more info. 
+
+2: Using the bot
+
+2.1: Using commands
+
+There are three ways to use commands exposed by the bot. First, you can prefix the command with the bot's name, a colon, and a space. For example: 
+	mvpybot: echo test
+
+The second is to prefix the command with the command character defined in options.py. For example:
+	mvpybot: !echo test
+
+The last is to send the bot a private message. Do not prefix the command with anything in this mode. For example:
+	/msg mvpybot echo test
+
+2.2: Built-in commands
+
+* test: Simple test command.
+
+* echo <text>: Echoes text back to the sender.
+
+* join <channel>: Makes the bot join a channel.
+
+* part <channel>: Makes the bot leave a channel.
+
+* say <channel/user> <text>: Makes the bot say some text in a channel/to a user.
+
+* raw <text>: Causes the bot to send raw data of your choosing to the IRC server.
+
+* uptime: Displays system uptime.
+
+* free: Displays system memory information.
+
+* hostname: Displays the system hostname.
+
+* user <authname>: Looks in the authentication files to see what privilege level a username has. Note that this is what level the name has in the auth file. This is only necessarily the same as the level a particular nick has if using implicit authentication mode. 
+
+* auth <username> <password>: Authenticates you using the given username and password. Only usable in explicit auth mode. 
+
+* authenticate: Same as auth. 
+
+* auths: Same as auth, but does not give a response on success. 
+
+* level: Checks your current privilege level. 
+
+* level <nick>: Checks someone else's privilege level. 
+
+* deauth: Log out manually. Only used in explicit auth mode. 
+
+* register <username> <password>: Registers for an account with the bot. Only used in explicit auth mode. 
+
+* authdump: Dumps currently authenticated users to the console. 
+
+* authinfo: debug command, ignore. 
+
+* restart: Restarts the bot core. Does not disconnect the bot. 
+
+* reload: Reloads and restarts the bot core. Does not disconnect. Saves the list of currently authenticated users. Generally, reload is much more useful than restart. 
+
+* die: Stops the bot. If using the start.py wrapper rather than mvpybot.py directly, then the bot will be restarted in 5 seconds. 
+
+* errtest: Checks the bot's error handling and reporting capabilities by raising an exception. Check the console to see it. 
+
+* help <command>: Tries to find help on <command>. Note that some commands' help functions might allow you to specify arguments, like 'help cmd arg arg'
+
+2.2.1: The modules command
+
+The modules command does nothing on its own. It requires at least 1 argument. 
+
+* modules reload: Reloads all currently loaded modules. Note that the bot seems to hang on to the old instances of them, so you'll want to do 'modules rescan' as well. 
+
+* modules reload <module> [module] ...: Reload specific modules. Same warning about rescan applies. 
+
+* modules rescan: Clears stored registries of modules and rescans them. This can be used to make the bot recognize new modules on the fly. Note that if you want to modify a module, you have to reload and rescan it. 
+
+* modules show: Shows currently active and enabled modules. Disabled modules are not shown. The names shown here are the names of the modules themselves, not the functions they provide. 
+
+* modules show allmods: Shows all modules, including disabled ones. 
+
+* modules show disabled: Shows only disabled modules. 
+
+* modules show functions: Shows registered functions. Name displayed is the name the user would call the function with. 
+
+* modules show listeners: Shows registered listeners. Value in parenthesis is the even that it is listening for. 
+
+* modules show help: Shows registered help functions. 
+
+3: Module development
+
+3.1: Basic requirements
+
+Your module must:
+* Reside in the 'modules' folder
+* Be a python file
+* Have a function called 'register' which accepts a registryFuncs() object as its only argument
+
+The register function is used to register the individual functions within your module to whatever events they are supposed to handle. The three types of functions are functions, helps, and listeners. See the pertinent sections for details. 
+
+3.1.1: Registration
+
+The register function is passed an instance of the registryFuncs class, which contains three variables:
+* registerfunction('name', function): Binds a python function in your module to the user-facing command name. 
+* addhelp('name', function): The same as above, but for a help function
+* addlistener('event', function): Adds a listener to handle a particular type of incoming message. 
+
+3.2: Functions
+
+A function is called when the user attempts to run a command, and it is not handled by a built-in command. It is expected to output a message to send to the server, although there's no reason it can't also use senddata. 
+
+A function is passed a cmdMsg instance as its only argument. cmdMsg contains:
+* cmdMsg.channel: The channel from which the command originated. If this is a PM, it will be the user who sent it, meaning it is always safe to send a message back to this channel. 
+* cmdMsg.nick: The nickname of the person who sent the message. 
+* cmdMsg.getlevel(nick): Get the level of a nick
+* cmdMsg.getLevelStr(nick): Get the friendly name level of a nick. 
+* cmdMsg.levelToStr(int): Get the friendly name of a numerical level
+* cmdMsg.botnick: the nick of the bot
+* cmdMsg.cmd: list of the command arguments
+* cmdMsg.syscmd(command): execute a system command, return output as a string. 'command' should be arguments as a list. 
+* cmdMsg.run: the name of the command to be run (should be the same as cmd[0])
+* cmdMsg.senddata(string): Send data to the server. Note that if possible, you should send data by returning it. 
+* cmdMsg.showdbg(string): Print some info as debugging. 
+* cmdMsg.showErr(string): Like showdbg, but formatted like an error. 
+
+Your function should return a string to be sent to the server. It can be the entire command to be sent to the server. However, if it is detected that the return value does not start with 'PRIVMSG', then 'PRIVMSG <channel> :' will be prepended. 
+
+3.3: Help
+
+A help function is called when the user runs 'help <command>', and it is not handled by a built-in help. It is expected to return something to be sent to the server. 
+
+It is passed a helpCmd instance, which contains the following:
+* helpCmd.channel: The channel from which the help request originated. 
+* helpCmd.cmd: The command the user wants help on (does not include the 'help' part. 
+
+The help should simply return the help text. As with a function, it return either just the message or the enter command to be sent to the server, but for ease of use it is recommended that you include nothing but the help text. 
+
+3.4: Listener
+
+A listener is called when its registered type of event occurs. It is expected to take a single argument, which will be a lineEvent object. lineEvent exposes the following:
+* lineEvent.line: The entire line
+* lineEvent.socket: The socket that the bot is connected to
+* lineEvent.conninfo: Information about the connection. Until this is documented better, explore svrt.py. 
+* lineEvent.senddata(string): Send data to the server
+* lineEvent.getlevel(nick): Gets a user's level
+* lineEvent.getLevelStr(nick): Gets a user's friendly-name level
+* lineEvent.levelToStr(int): Convert a level into the friendly name
+* lineEvent.showdbg(string): Output debugging info
+* lineEvent.showErr(string): Show an error
+* lineEvent.syscmd(command): Run a system command, return output as a string. 'command' should be arguments as a list. 
+* lineEvent.linesplit: The line, split by spaces as a list
+* lineEvent.userString: The nick+user+realname string, as received from the server. Blank string if it is a non-user command. 
+* lineEvent.type: The type of event. For PING, ERROR, PART, JOIN, PRIVMSG, NICK, QUIT, it is exactly what you would expect but lowercase. For others, it is the name/number as received from the server. 
+* lineEvent.channel: For events that involve a channel, the name of the channel. As with functions, if it is a PM then this is set to the sender so that you can safely reply to the channel. 
+* lineEvent.isPrivate: Set to true if this is a PM (privmsg only)
+* lineEvent.nick: The nickname part of the user string. 
+* lineEvent.user: The username part of the user string. 
+* lineEvent.realName: The realname part of the user string. 
+* lineEvent.reason: For events that allow the user to supply a reason (join/part/quit/etc), the reason. 
+* lineEvent.newNick: For nick change events, the new nick. 
+* lineEvent.message: For PRIVMSGs, the actual message (excluding the leading colon)
+* lineEvent.target: For ping events, the target part of the ping. 
+
+A listener should not return anything. It should send data using senddata(). 
+
+When a listener registers, it can register for any type of event it wants. You can register the same function for multiple types of events. There are two special types of events that a listener can register for:
+* any: Register for any valid event
+* periodic: Run when the bot hasn't received data from the server for a few seconds. 
+
+When using periodic, instead of a lineEvent, the bot is sent a periodic object. It has the following:
+* periodic.socket
+* periodic.conninfo
+* periodic.senddata(string)
+* periodic.getlevel
+* periodic.numlevel
+They do the same as in a normal listener. 
