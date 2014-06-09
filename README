@@ -11,8 +11,8 @@ Table of contents
 
 1. Extract files into a folder
 2. Make sure mvpybot.py and start.py are executable
-3. Edit options.py (see the pertinent section)
-4. Optionally edit config.py (see the pertinent section)
+3. Remove the '.example' suffix from any files that have it, and customize those files to your liking. 
+See the pertinent sections of this readme. 
 
 To run the bot, execute start.py (you can also run mvpybot.py directly, but you lose features)
 

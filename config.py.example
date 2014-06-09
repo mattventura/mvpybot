@@ -1,0 +1,49 @@
+#!/usr/bin/python
+
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# This file contains options that do not typically need to be changed.
+# options.py has been split into options.py for common options, and config.py
+# for less common options.
+
+# This is the message to use to reject access to commands that require admin privs.
+privrejectadmin = 'This function is reserved for admins only.'
+# This is the message to use to reject access to commands that require user privs.
+privrejectuser = 'This function requires you to register. Please use the register command.'
+
+privrejectgeneric = 'This function requires a higher privilege level than you currently have. Please try registering or contact an admin.'
+
+# This is the message to output to the terminal when a user does not hold user privs.
+privloguser = ' did not complete due to required user priviledge.'
+privlogadmin = ' did not complete due to required admin priviledge.'
+
+#Configure the numeric levels of various user levels
+privilegelevels = {
+	20 : 'admin',
+	3 : 'user',
+	0 : 'none'  #don't touch this line
+}
+
+# Configure the required privilege levels required for various functions.
+# Modules is reloading, enabling, and disabling, while showmods is 
+# for 'read-only' functions. 
+
+reqprivlevels = {
+	'modules' : 20,
+	'showmods' : 3
+	}
+
+# If debug is set to 0, modules that fail will do so silently, and will not interrupt the bot's operation.
+# However, the standard Python error message is not displayed. 
+# If set to 1, the error message will be displayed when a module crashes, but the entire bot will do down 
+# with it. 
+debug = 0
+
+
+
+# Display a "command not found message"
+cnf_enable = False
+#cnf_enable = True 
+
+defaulthelp = "This is mypybot, a bot written in Python."
+
+simpleAuthNotice = 'This bot is using implicit authentication. You do not need to use any authentication or registry commands.'

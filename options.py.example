@@ -1,0 +1,24 @@
+#!/usr/bin/python
+global NICK
+import builtins
+
+
+# Nickname of the bot
+NICK = 'mvpybot' 
+
+# Don't touch
+builtins.NICK = NICK
+from svrt import *
+
+# Define connections
+# Multi-server support isn't quite there yet, so I recommend only using a single server
+connections = [
+	ircSrv('buyvm.theoks.net', chans = ['#bottesting'])
+	#twIrc(['#bot_testing'], 'oauth:43214adsf9d8fjskfhs8sj489'])
+]
+
+# Command prefix
+cmdprefix = '!'
+
+# Make this true if you want log files
+logging = True
