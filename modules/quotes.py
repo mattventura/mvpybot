@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-enabled = 0
+enabled = 1
 
 import random
 
@@ -20,7 +20,7 @@ def quote(msg):
 		except:
 			return('PRIVMSG %s :Syntax error. Usage: quote <number>.\n' %msg.channel)
 	elif msg.cmd[1] == 'add':
-		if cmd[2][0] == '.':
+		if msg.cmd[2][0] == '.':
 			return('PRIVMSG %s :The quote cannot start with a period.' %msg.channel)
 		else:
 			return('PRIVMSG %s :%s\n' %(msg.channel, addQuote(' '.join(msg.cmd[2:]))))
