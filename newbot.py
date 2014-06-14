@@ -194,6 +194,21 @@ def botmain(botsocket, conn, initconn):
 	global authlist
 	authlist = []
 
+	# Function to return the auth object of a nick
+	def getAuth(name):
+		found = False
+		for i in authlist:
+			if i.nick == name:
+				found = True
+				result = i
+				break
+		if found:
+			return i
+		else:
+			return False
+			
+
+
 	# Function for getting the level of somebody
 	# Works with both implicit and explicit authentication. 
 	def getlevel(name):
@@ -810,7 +825,73 @@ def botmain(botsocket, conn, initconn):
 								out = 'PRIVMSG ' + channel + ' :Registered. You can now authenticate. '
 						else:
 							out = 'PRIVMSG ' + channel + ' :Account already exists.'
-						
+
+				# Change your own pass
+				if (run == 'pass'):
+					if not(conn.userAuth):
+						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice	
+					else:
+						if (len(cmd) < 2):
+							out = 'PRIVMSG ' + channel + ' :Incorrect syntax. Usage: pass password'
+						else:
+							authEntry = getAuth(sender)
+							if authEntry:
+								authName = authEntry.authName
+								showdbg('Attempting to change password for %s' %(authName))
+								with open('users', 'r') as f:
+									outData = ''
+									for line in f:
+										lineSplit = line.split(' ')
+										if authName == lineSplit[0]:
+											outData += '%s HASH:%s %s' %(lineSplit[0], sha(cmd[1].encode()).hexdigest(), lineSplit[2])
+											showdbg('Found entry, modifying...')
+										else:
+											outData += line
+								with open('users', 'w') as f:
+									f.write(outData)
+									f.truncate()
+								
+								out = 'PRIVMSG %s :%s' %(channel, 'Successfully changed password')
+							
+							else: 
+
+
+								out = 'PRIVMSG ' + channel + ' :You are not currently authenticated. Please auth first. '
+
+
+				# Change any user's password
+				if (run == 'passwd'):
+					if not(conn.userAuth):
+						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice	
+					elif getlevel(sender) < 20:
+						out = 'PRIVMSG %s :%s' %(channel, config.privrejectadmin)
+					else:
+						if (len(cmd) < 3):
+							out = 'PRIVMSG ' + channel + ' :Incorrect syntax. Usage: passwd user password'
+						else:
+							authName = cmd[1]
+							showdbg('Attempting to change password for %s' %(authName))
+							with open('users', 'r') as f:
+								outData = ''
+								found = False
+								for line in f:
+									lineSplit = line.split(' ')
+									if authName == lineSplit[0]:
+										outData += '%s HASH:%s %s' %(lineSplit[0], sha(cmd[2].encode()).hexdigest(), lineSplit[2])
+										showdbg('Found entry, modifying...')
+										found = True
+									else:
+										outData += line
+							
+							if found:
+								with open('users', 'w') as f:
+									f.write(outData)
+									f.truncate()
+								out = 'PRIVMSG %s :%s' %(channel, 'Successfully changed password')
+							else:
+								out = 'PRIVMSG %s :%s' %(channel, 'Could not find that user')
+							
+													
 
 				if (run == 'authdump'):
 					
