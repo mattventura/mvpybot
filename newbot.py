@@ -57,12 +57,12 @@ import config
 
 # Allow easy importing from the modules folder
 sys.path.append("modules")
+
 def botmain(botsocket, botConn, initconn):
 
+	# Expose connection to other functions
 	global conn
-
 	conn = botConn
-
 
 
 
@@ -77,16 +77,16 @@ def botmain(botsocket, botConn, initconn):
 	global s
 	s = botsocket 
 
-
-
-	
-
 	# Announce that we are logging
 	logdata(time.strftime('---- [ Session starting at %y-%m-%d %H:%M:%S ] ----'))
 
 
 	showdbg('Initializing...')
 	showdbg('Loading modules...')
+	
+	# Initialize authlist
+	global authlist
+	authlist = []
 
 	# This is where we load plugins
 	# The general plugin system is this:
@@ -125,17 +125,13 @@ def botmain(botsocket, botConn, initconn):
 
 	# These functions have to be declared early on
 	# due to dependencies. 
-	global authlist
-	authlist = []
 
-			
 	funcregistry = {}
 	listenerregistry = {}
 	helpregistry = {}
-
-
 	library_list = []
 	library_dict = {}
+
 	for file in os.listdir(os.path.abspath("modules")):
 		pname, fileext = os.path.splitext(file)
 		if fileext == '.py':
@@ -187,16 +183,14 @@ def botmain(botsocket, botConn, initconn):
 	# More legacy stuff
 	builtins.host = host
 
-
 	# Legacy variable names
 	cspass = conn.csp
 	channels = conn.chans
 
-	
-
+	# Initialize these to almost-blank strings to avoid some problems
 	line = ' '
-
 	tosend = ' '
+
 	# The variable initconn tells us if we need to do a full connection (True) 
 	# or if we get to re-use it (False)
 	if initconn:
@@ -211,7 +205,8 @@ def botmain(botsocket, botConn, initconn):
 		time.sleep(1)
 		s.settimeout(5)
 		# Some servers have some anti-exploit stuff enabled, where you
-		# have to respond to a ping really early on to make sure you're real. 
+		# have to respond to a ping really early on to make sure you're 
+		# not a spoofer or the victim of an exploit. 
 		try:
 			line = s.recv(1024).decode()
 			dispdata(line)
@@ -232,10 +227,9 @@ def botmain(botsocket, botConn, initconn):
 			line = s.recv(1024).decode()
 			dispdata(line)
 
-	showdbg('Connected')
+		showdbg('Connected')
 
-	if initconn:
-		# Identify with nickserv.
+		# Identify with chanserv
 		if cspass:
 			out = 'PRIVMSG nickserv identify ' + cspass + '\n'
 			senddata(out)
@@ -246,7 +240,12 @@ def botmain(botsocket, botConn, initconn):
 			senddata(out)
 
 		showdbg('Joined channels')
+	
+	else:
 
+		showdbg('''Didn't need to perform a full connection init''')
+
+		
 	# For if we're reloading, this tries to reload the old auth list
 	def loadauthlist():
 		return builtins.authlist	
@@ -265,7 +264,7 @@ def botmain(botsocket, botConn, initconn):
 	s.settimeout(5) # This sets the max time to wait for data
 	# Note that this will also affect how often periodics are run
 
-	while 1:
+	while True:
 		linebuffer = False
 		try:
 			linebuffer = s.recv(1024).decode()
@@ -584,19 +583,22 @@ def syscmd(command):
 	result = Popen(command, stdout = PIPE).communicate()[0]
 	return result
 
-
+# Tries to guess whether 'a' or 'an' should be used with a word
 def getArticle(word):
 	if word[0] in ('a', 'e', 'i', 'o', 'u'):
 		return('an')
 	else:
 		return('a')
 
+# Tries to find a privilege level in config.py
+# Failing that, it will return the default argument. 
 def getPrivReq(priv, default = 0):
 	if priv in config.reqprivlevels:
 		return(config.reqprivlevels[priv])
 	else:
 		return(default)
 
+# Check if someone has a privilege
 def hasPriv(nick, priv, default):
 	if (getlevel(nick) >= getPrivReq(priv, default)):
 		return True
@@ -784,6 +786,9 @@ def registerUserFunc(msg):
 
 				return('Account created. You can now authenticate.')
 
+
+
+# Function to change a user's password
 def chgUserPass(user, newPass):
 	
 	if not(conn.userAuth):
@@ -1282,6 +1287,7 @@ class periodic:
 		self.sendata = senddata
 		self.numlevel = numlevel
 		self.getlevel = getlevel
+		self.hasPriv = hasPriv
 
 # This is the class used for when an external function needs to
 # be called. This stuff gets mostly pre-processed so the contructor
