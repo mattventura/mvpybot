@@ -4,3 +4,4 @@ users
 ausers
 config.py
 *.swp
+log.*
