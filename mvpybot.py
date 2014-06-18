@@ -24,6 +24,9 @@ port = conn.port
 
 builtins.host = host
 
+builtins.errors = []
+
+
 cspass = conn.csp
 
 channels = conn.chans

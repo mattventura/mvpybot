@@ -24,42 +24,46 @@
 #       The bot will run much better just from the commandline version of Python.
 #    --Darren VanBuren
 
-def botmain(botsocket, conn, initconn):
+# Required builtin python modules
+import sys
+import socket
+import string
+import os
+import time
+import random
+import inspect
+import builtins
+import traceback
+from imp import reload
 
 
-	# Required builtin python modules
-	import sys
-	import socket
-	import string
-	import os
-	import time
-	import random
-	import inspect
-	import builtins
-	import traceback
-	from imp import reload
-	
-	
-	
-	
-	#Because sha is depreciated, we use the import ____ as ____ trickery
-	#   as well as try...except magic.
-	try:
-		from hashlib import sha1 as sha
-	except ImportError:
-		from sha import sha as sha
-
-	from subprocess import Popen, PIPE
 
 
-	# Import user settings
-	# Options is the one the user should change most of the time
-	# Config is just some strings and stuff
-	import options
-	import config
+#Because sha is depreciated, we use the import ____ as ____ trickery
+#   as well as try...except magic.
+try:
+	from hashlib import sha1 as sha
+except ImportError:
+	from sha import sha as sha
 
-	# Allow easy importing from the modules folder
-	sys.path.append("modules")
+from subprocess import Popen, PIPE
+
+
+# Import user settings
+# Options is the one the user should change most of the time
+# Config is just some strings and stuff
+import options
+import config
+
+# Allow easy importing from the modules folder
+sys.path.append("modules")
+def botmain(botsocket, botConn, initconn):
+
+	global conn
+
+	conn = botConn
+
+
 
 
 	# Used for throttling of sending messages
@@ -70,20 +74,10 @@ def botmain(botsocket, conn, initconn):
 
 	# Our socket
 	# It comes pre-connected
+	global s
 	s = botsocket 
 
-	# logdata(string): Puts the string in the log file, along with a timestamp
-	# Seperates multi-line input automatically
 
-	def logdata(data):
-		if options.logging:
-			try:	
-				with open('log.' + conn.host, 'a', encoding = 'utf-8') as logfile:
-					timestamp = time.strftime('[%y-%m-%d %H:%M:%S] ')
-					logfile.write(timestamp + data + '\n')
-					logfile.close()
-			except: 
-				print('!!!ERROR WITH LOG FILE!!!')
 
 	
 
@@ -91,66 +85,6 @@ def botmain(botsocket, conn, initconn):
 	logdata(time.strftime('---- [ Session starting at %y-%m-%d %H:%M:%S ] ----'))
 
 
-	# senddata: Send data to the server, output it to the console, and log it
-	# senddata(string): uses the specified string, handling multiple lines properly
-	# senddata(string, alt): displays/logs a different string, useful for hiding passwords
-	# 	Note that this usage is *not* compatible with multi-line input
-	def senddata(tosend, alt = False):
-			
-		sendparts = tosend.split('\n')
-
-		if (len(sendparts) > 2):
-			for part in sendparts[:-1]:
-				senddata(part + '\n')
-
-		else:
-			global lastMsgOut
-			if conn.throttle:
-				timeSinceLast = time.time() - lastMsgOut
-				if timeSinceLast < conn.throttle:
-					time.sleep(conn.throttle - timeSinceLast)
-			
-			s.sendall(tosend.encode())
-			lastMsgOut = time.time()
-
-			for part in sendparts:
-				if len(part)>1:
-					if alt:
-						part = alt
-					outstr = '(%s)< %s' %(host, part.rstrip())
-					print(outstr)
-						
-					logdata(outstr)
-				
-	# Display data being received from the server
-	# Prefixes it with server name and a >, then logs it
-
-	def dispdata(todisp):
-		for line in todisp.splitlines():
-			outstr = '(%s)> %s\n' %(host, line.rstrip())
-			try:
-				sys.stdout.write(outstr)
-			except:
-				outstrEnc = outstr.encode('ascii', 'replace').decode()
-				sys.stdout.write(outstrEnc)
-			logdata(outstr)
-
-	# Output some debugging info to console/log
-	# Prefixes it with server name and a *
-	def showdbg(toshow):
-		for line in toshow.splitlines():
-			if line:
-				outstr = '(%s)* %s' %(conn.host, line.rstrip()) 
-				print(outstr)
-				logdata(outstr)
-	
-	def showErr(toshow):
-		for line in toshow.splitlines():
-			if line:
-				outstr = '(%s)! %s' %(conn.host, line.rstrip()) 
-				print(outstr)
-				logdata(outstr)
-	
 	showdbg('Initializing...')
 	showdbg('Loading modules...')
 
@@ -194,214 +128,11 @@ def botmain(botsocket, conn, initconn):
 	global authlist
 	authlist = []
 
-	# Function to return the auth object of a nick
-	def getAuth(name):
-		found = False
-		for i in authlist:
-			if i.nick == name:
-				found = True
-				result = i
-				break
-		if found:
-			return i
-		else:
-			return False
-			
-
-
-	# Function for getting the level of somebody
-	# Works with both implicit and explicit authentication. 
-	def getlevel(name):
-		found = 0
-		iname = name
-		for i in authlist:
-			if i.nick == name:
-				found = 1
-				flevel = i.level
-		if found == 1:
-			return flevel
-		else:
-			return 0
-
-	def getLevelStr(name):
-		return levelToStr(getlevel(name))
-
-	def levelToStr(level):
-		if level < 0:
-			return('invalid')
-		try:
-			return(config.privilegelevels[level])
-		except: 
-			return(levelToStr(level - 1))
-	# Class definitions
-
-	# Define our message class (Not used anymore)
-	class message:
-		line = ""
-
-	# This is the class used for when an external function needs to
-	# be called. This stuff gets mostly pre-processed so the contructor
-	# doesn't do much. 
-	class cmdMsg:
-		def __init__(self, channel, nick, botnick, cmd, run):
-			self.channel = channel
-			self.nick = nick
-			self.getlevel = getlevel
-			self.botnick = botnick
-			self.cmd = cmd
-			self.syscmd = syscmd
-			self.run = run
-			self.numlevel = getlevel
-			self.senddata = senddata
-			self.showdbg = showdbg
-			self.getLevelStr = getLevelStr
-			self.levelToStr = levelToStr
-			self.showErr = showErr
-
-	# Same thing with this. 
-	class helpCmd: 
-		def __init__(self, channel, cmd):
-			self.channel = channel
-			self.cmd = cmd
-
-	# Not much to do here, just passing in some useful functions
-	class periodic:
-		def __init__(self, socket, conninfo):
-			self.socket = socket
-			self.conninfo = conninfo
-			self.sendata = senddata
-			self.numlevel = numlevel
-			self.getlevel = getlevel
-
-	# This is the big one. This is what gets passed to listeners. 
-	# Here, the constructor actually does stuff. 
-	# To-do: NICK events
-	class lineEvent:
-		def __init__(self, line, socket, conninfo ):
-			self.line = line.rstrip()
-			self.socket = socket
-			self.conninfo = conninfo
-			self.senddata = senddata
-			self.getlevel = getlevel
-			self.numlevel = getlevel
-			self.showdbg = showdbg
-			self.showErr = showErr
-			self.getLevelStr = getLevelStr
-			self.levelToStr = levelToStr
-			self.linesplit = self.line.split(' ')
-			self.userString = ''
-			self.type = ''
-			self.syscmd = syscmd
-
-			if self.linesplit[0] == 'PING':
-				self.type = 'ping'
-				self.ping = self.line.split()
-				self.target = self.ping[1]
-				return(None)
-			
-			if self.linesplit[0] == 'ERROR':
-				self.type = 'error'
-				return(None)
-			
-			if self.linesplit[1] == 'PART':
-				self.type = 'part' 
-				self.userString = self.linesplit[0]
-				self.channel = self.linesplit[2]
-				if len(self.linesplit) >= 4:
-					self.reason = self.linesplit[3][1:]
-
-			if self.linesplit[1] == 'JOIN':
-				self.type = 'join'
-				self.userString = self.linesplit[0]
-				self.channel = self.linesplit[2]
-				if len(self.linesplit) >= 4:
-					self.reason = self.linesplit[3][1:]
-
-			if self.linesplit[1] =='NICK':
-				self.type = 'nick'
-				self.userString = self.linesplit[0]
-				self.newNick = self.linesplit[2]
-			
-			if self.linesplit[1] =='QUIT':
-				self.type = 'quit'
-				self.userString = self.linesplit[0]
-				self.reason = self.linesplit[2][1:]
-
-			if self.linesplit[1] == 'PRIVMSG':
-				self.type = 'privmsg'
-				self.userString = self.linesplit[0]
-				self.channel = self.linesplit[2]
-				if self.channel[0] == '#':
-					self.isPrivate = False
-				else:
-					self.isPrivate = True 
-				
-				if self.isPrivate:
-					self.channel = self.userString.split(':')[1].split('!')[0]
-
-				self.message = ' '.join(self.linesplit[3:])
-				if (self.message[0] == ':'):
-					self.message = self.message[1:]
-
-
-			if self.userString:
-				part1 = self.userString.split(':')[1]
-				part2 = part1.split('!')
-				part3 = part2[1].split('@')
-				self.nick = part2[0]
-				self.user = part3[0]
-				self.realName = part3[1]
-
-			if not(self.type):
-				self.type = self.linesplit[1]
-
-	class aUser:
-		def __init__(self, nick, authName, level):
-			self.nick = nick
-			self.authName = authName
-			self.level = level
-
-		def rename(self, newNick):
-			self.nick = newNick
-
-		def chgLvl(self, newLevel):
-			self.level = newLevel
-		
-
-	class asUser:
-		def __init__(self, nick, level):
-			self.nick = nick
-			self.authName = nick
-			self.level = level
-
-		def chgLvl(self, newLevel):
-			self.level = newLevel
 			
 	funcregistry = {}
 	listenerregistry = {}
 	helpregistry = {}
 
-	def registerfunction(name, function):
-		module = builtins.lastMod
-		funcregistry[name] = [module, function]
-
-	def addlistener(event, function):
-		module = builtins.lastMod
-		if event in listenerregistry:
-			listenerregistry[event].append([module, function])
-		else:
-			listenerregistry[event] = []
-			listenerregistry[event].append([module, function])
-
-	def addhelp(name, function):
-		module = builtins.lastMod
-		helpregistry[name] = [module, function]
-
-	class registryFuncs:
-		def __init__(self):
-			self.registerfunction = registerfunction
-			self.addlistener = addlistener
-			self.addhelp = addhelp
 
 	library_list = []
 	library_dict = {}
@@ -412,7 +143,8 @@ def botmain(botsocket, conn, initconn):
 				module = __import__(pname)
 			except:
 				showErr('Error importing plugin ' + pname)
-				showErr(traceback.format_exc())
+				reportErr(sys.exc_info())
+
 			library_list.append(module)
 			library_dict[pname] = module
 			if hasattr(module, 'register') and getattr(module, 'enabled', 1):
@@ -423,51 +155,8 @@ def botmain(botsocket, conn, initconn):
 					getattr(module, 'register')(regs)
 				except:
 					showErr('Error registering plugin ' + pname)
-					showErr(traceback.format_exc())
+					reportErr(sys.exc_info())
 	
-	def reloadByName(modName):
-		
-		module = library_dict[modName]
-		builtins.lastMod = module
-
-		regs = registryFuncs()
-
-		for mod in funcregistry:
-			if mod[0] == modName:
-				funcregistry.pop(mod)
-
-		for mod in helpregistry:
-			if mod[0] == modName:
-				funcregistry.pop(mod)
-
-		for evtype in listenerregistry:
-			for mod in listenerregistry[evtype]:
-				if mod[0].__name__ == modName:
-					listenerregistry[evtype].remove(mod)
-
-
-		try:	
-			reload(module)
-		except:
-			showErr('Error reloading module %s' %modName)
-			showErr(traceback.format_exc())
-			return(False)
-			
-
-		if getattr(module, 'enabled', True):
-			
-			try:
-				getattr(module, 'register')(regs)
-				return(True)
-			except:
-				showErr('Error registering module %s' %modName)
-				showErr(traceback.format_exc())
-				return(False)
-
-		else:
-			return(True)
-			
-
 	# Load the simple auth file if using implicit/simple auth
 	# This file needs to be formatted as such:
 	# username1 user
@@ -572,640 +261,6 @@ def botmain(botsocket, conn, initconn):
 			authlist = []
 
 
-	# This is a function that can be used to call external programs
-	# Be sure that the program does not hang, or else the bot will hang
-	# To make it un-hangable, look at the math plugin for an example
-	# of how to modify it.
-	# And of course, MAKE SURE MODULES THAT USE THIS ARE VERY SECURE!
-	# If you aren't planning on using any modules that make use of this, 
-	# you may want to just commend this out. 
-	def syscmd(command):
-		showdbg('SYSCMD called. Running "' + ' '.join(command) + '".')
-		result = Popen(command, stdout = PIPE).communicate()[0]
-		return result
-
-
-	
-
-
-
-			
-		
-
-
-	# This big function is called when we want to parse an incoming PRIVMSG
-	# e: the event, which we've already created
-	def parse(e):
-		global authlist
-		global helpregistry
-		global funcregistry
-		global listenerregistry
-		
-		# Legacy
-		sender = e.nick
-		channel = e.channel
-		msg = e.message
-
-
-		# Figure out if it is a channel message or a private message
-		if (e.isPrivate):
-			isprivate = 1
-			channel = sender
-		else:
-			isprivate = 0
-
-		run = ''
-		out = ''
-		length = len(msg)
-
-		# Quick fix
-		if (length == 0):
-			msg = '(null)'
-	
-
-		# There are three ways to call a command:
-		# #1: Use the command prefix, sett in options
-		if (msg[0] == options.cmdprefix):
-			cmd = msg[1:].split(' ')
-			run = cmd[0]
-			cmdstring = ' '.join(cmd)
-
-		msgparts = msg.split(' ')
-
-
-		# #2: Say the bot's name, followed by a colon and space
-		if ((msgparts[0].lower() == options.NICK.lower() + ':') and (len(msgparts) > 1)):
-			cmd = msgparts[1:]
-			run = cmd[0].rstrip()
-			cmdstring = ' '.join(cmd)
-
-		# #3: Directly send the bot a PM
-		if (isprivate == 1):
-			cmd = msgparts[0:]
-			run = cmd[0].rstrip()
-			cmdstring = ' '.join(cmd)
-		
-
-		# Do this stuff if it is determined that we should try
-		# to run a command
-		if (run):
-
-			try: 
-				# Test command
-				if (run == 'test'):
-					out = 'PRIVMSG ' + channel + ' :' + sender + ': test'
-
-				# Join a channel
-				if (run == 'join'):
-					if (getlevel(sender) >= 20):
-						channel = cmd[1]
-						out='JOIN ' + channel
-					else:
-						out = 'PRIVMSG ' + channel + ' : ' + sender + ': '+config.privrejectadmin
-
-				# Leave a channel
-				if (run == 'part'):
-					if (getlevel(sender) >= 20):
-						channel = cmd[1]
-						out = 'PART ' + channel
-					else:
-						out = 'PRIVMSG ' + channel + ' : ' + sender + ': ' + config.privrejectadmin
-			
-				# Gets the level of a user stored in the auth file. 
-				# Note that this does NOT tell you what level a currently-connected
-				# user is (unless using implicit auth). 
-				if (run == 'user'):
-					if (len(cmd) != 2):
-						out = 'PRIVMSG ' + channel + ' :Incorrect usage. Usage: user <username>'
-					else:
-						if conn.userAuth:
-							username = cmd[1]
-							f = open('users')
-							for line in f.readlines():
-								line = line.rstrip()
-								if line.find(username) != -1:
-									linesplit = line.split(' ')
-									username = linesplit[0]
-									password = linesplit[1]
-									level    = int(linesplit[2])
-									levelStr = levelToStr(level)
-
-									if levelStr[0] in ('a', 'e', 'i', 'o', 'u'):
-										article = 'an'
-									else:
-										article = 'a'
-
-									out = 'PRIVMSG ' + channel + ' :' + username + ' is level ' + str(level) + ' (' + article + ' ' + levelStr + '). '
-
-									
-										
-
-							f.close()
-
-						else:
-							username = cmd[1]
-							f = open('ausers')
-							for line in f.readlines():
-								line = line.rstrip()
-								if line.find(username) != -1:
-									linesplit = line.split(' ')
-									username = linesplit[0]
-									level    = linesplit[1]
-									out = 'PRIVMSG ' + channel + ' :' + username + ' is a ' + level
-							f.close()
-
-				# Explicit auth only: Authenticate with your username and password
-				# Obviously you shouldn't type this in a channel, only PM
-				# 'auths' is the same but doesn't send a reply on success. 
-				if ((run == 'auth') or (run == 'authenticate') or (run == 'auths')):
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice
-	
-					elif len(cmd) != 3:
-						out = 'PRIVMSG ' + channel + ' :Incorrect syntax. Usage: auth <username> <pass>'
-
-					else:
-						if isprivate == 1:
-							if getlevel(sender) > 0:
-								out = 'PRIVMSG %s :You are already authenticated. If you would like to change accounts, you can deauth first and try again.' %(channel)
-							else:
-								iname = cmd[1].rstrip()
-								ipass = cmd[2].rstrip()
-								f = open('users')
-								correct = 0
-								found = 0
-								showdbg( iname + ' is attempting to authenticate.' )
-								for line in f.readlines():
-									line = line.rstrip()
-									linestuff = line.split(' ')
-									if linestuff[0].find(iname) != -1:
-										found = 1
-										linesplit = line.split(' ')
-										fpass = linesplit[1]
-										flevel = int(linesplit[2])
-										if ipass == fpass:
-											correct = 1
-										elif ('HASH:' + sha(ipass.encode()).hexdigest()) == fpass:
-											correct = 1
-
-								if found == 1:
-									if correct == 1:
-										if run == 'auths':
-											out = '(none)'
-										else:
-											out = 'PRIVMSG ' + channel + ' :Correct'
-										showdbg(iname + " is authenticated")
-										authlist.append(aUser(sender, iname, flevel))
-										#print authlist
-
-									else:
-										out = 'PRIVMSG ' + channel + ' :Incorrect'
-										showdbg(iname + " failed to authenticate")
-
-								else:
-									out='PRIVMSG ' + channel + ' :Not found'
-									showdbg(iname + "was not found in the users file")
-
-						else:
-							out='PRIVMSG ' + channel + ' :' + sender + ': Use this function with /msg, don\'t use it in a channel.'
-				# Gets your current level
-				if (run == 'level'):
-					if (len(cmd) == 1):
-						lNick = sender
-					else:
-						lNick = cmd[1]
-					level = getlevel(lNick)
-					rlevel = levelToStr(level)
-					out = 'PRIVMSG ' + channel + ' :' + lNick + ' is level ' + str(level) + ' (' + rlevel + ').'
-
-				# Log off
-				if (run == 'deauth'):
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice
-					else: 
-						found = 0
-						iname = sender
-						if getLevelStr(iname) != 'none':
-							for i in authlist:
-								
-								
-								alname = i.nick
-								if alname == iname:
-									authlist.remove(i)
-									found = 1
-							if found:
-								out = 'PRIVMSG '+channel+' :Deauthenticated'
-							else:
-								out = 'PRIVMSG '+channel+' :An error has occured'
-						else:
-							out = 'PRIVMSG '+channel+' :You are not authenticated.'
-
-				# Explicit auth only: register for an account
-				if (run == 'register'):
-			
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice
-					else: 
-	
-						if (len(cmd) != 3):
-							out = 'PRIVMSG ' + channel + ' :Incorrect syntax. Usage: register username password'
-						else:
-							with open('users', 'r') as f:
-								valid = 1
-								for line in f:
-									linestuff = line.split(' ')
-									if cmd[1] == linestuff[0]:
-										valid = 0
-										out = 'PRIVMSG ' + channel + ' :Account already exists'
-								
-						if valid == 1:
-							with open('users', 'a') as f:
-								fileout = cmd[1] + ' HASH:' + sha(cmd[2].encode()).hexdigest() + ' 3\n'
-								f.write(fileout)
-								out = 'PRIVMSG ' + channel + ' :Registered. You can now authenticate. '
-						else:
-							out = 'PRIVMSG ' + channel + ' :Account already exists.'
-
-				# Change your own pass
-				if (run == 'pass'):
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice	
-					else:
-						if (len(cmd) < 2):
-							out = 'PRIVMSG ' + channel + ' :Incorrect syntax. Usage: pass password'
-						else:
-							authEntry = getAuth(sender)
-							if authEntry:
-								authName = authEntry.authName
-								showdbg('Attempting to change password for %s' %(authName))
-								with open('users', 'r') as f:
-									outData = ''
-									for line in f:
-										lineSplit = line.split(' ')
-										if authName == lineSplit[0]:
-											outData += '%s HASH:%s %s' %(lineSplit[0], sha(cmd[1].encode()).hexdigest(), lineSplit[2])
-											showdbg('Found entry, modifying...')
-										else:
-											outData += line
-								with open('users', 'w') as f:
-									f.write(outData)
-									f.truncate()
-								
-								out = 'PRIVMSG %s :%s' %(channel, 'Successfully changed password')
-							
-							else: 
-
-
-								out = 'PRIVMSG ' + channel + ' :You are not currently authenticated. Please auth first. '
-
-
-				# Change any user's password
-				if (run == 'passwd'):
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice	
-					elif getlevel(sender) < 20:
-						out = 'PRIVMSG %s :%s' %(channel, config.privrejectadmin)
-					else:
-						if (len(cmd) < 3):
-							out = 'PRIVMSG ' + channel + ' :Incorrect syntax. Usage: passwd user password'
-						else:
-							authName = cmd[1]
-							showdbg('Attempting to change password for %s' %(authName))
-							with open('users', 'r') as f:
-								outData = ''
-								found = False
-								for line in f:
-									lineSplit = line.split(' ')
-									if authName == lineSplit[0]:
-										outData += '%s HASH:%s %s' %(lineSplit[0], sha(cmd[2].encode()).hexdigest(), lineSplit[2])
-										showdbg('Found entry, modifying...')
-										found = True
-									else:
-										outData += line
-							
-							if found:
-								with open('users', 'w') as f:
-									f.write(outData)
-									f.truncate()
-								out = 'PRIVMSG %s :%s' %(channel, 'Successfully changed password')
-							else:
-								out = 'PRIVMSG %s :%s' %(channel, 'Could not find that user')
-							
-													
-
-				if (run == 'authdump'):
-					
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice
-
-					else:
-						if getlevel(sender) >= 20:
-							
-							out = 'PRIVMSG ' + channel + ' :Auth list dumped to console'
-							showdbg('Dumping auth list...')
-							for i in authlist:
-								showdbg(i.nick + '; ' + i.authName + '; ' + str(i.level))
-						else:
-							out = 'PRIVMSG ' + channel + ' :' + sender + ': ' + config.privrejectadmin 
-
-
-				if (run == 'authinfo'):
-					
-					if not(conn.userAuth):
-						out = 'PRIVMSG ' + channel + ' :' + config.simpleAuthNotice
-
-					else:
-						if getlevel(sender) >= 20:
-							authItem = authlist[0]
-							out = 'PRIVMSG ' + channel + ' :Auth dump: ' + authItem.nick + '; ' + authItem.authName + '; ' + str(authItem.level) + '; ' + str(len(authlist))
-						else:
-							out = 'PRIVMSG ' + channel + ' :' + sender + ': ' + config.privrejectadmin 
-
-
-
-	
-
-				# Commands for stopping/starting/reloading/etc: This is important to read this.
-				# It's not incredibly intuitive. 
-				# reload: the wrapper one level above this bot (mvpybot.py) just does a reload()
-				# on the bot module, then restarts it. Saves authenticated users first. Does not
-				# use a new connection. 
-				# restart: restarts the bot. Saves auth list. Doesn't actually reload the bot
-				# so I'm not sure when you would actually want to use this. Uses same connection. 
-				# die: both the bot and the wrapper one level above it stop. If you ran mvpybot.py
-				# directly, it will stop. If you're running start.py, it will automatically be
-				# restarted. 
-				# Yes, this means that unlike most programs, 'reload' actually does more than 'restart'. 
-
-				if (run == 'restart'):
-					if (getlevel(sender) >= 20):
-						showdbg('Restart requested')
-						out = 'PRIVMSG ' + channel + ' :Restarting...'
-						return {'action': "restart"}
-					else:
-						out='PRIVMSG ' + channel + ' :' + config.privrejectadmin
-				if (run == 'die'):
-					if (getlevel(sender) >= 20):
-						showdbg('Stop requested')
-						out = 'PRIVMSG ' + channel + ' :Stopping...'
-						return {'action': "die"}
-					else:
-						out='PRIVMSG ' + channel + ' :' + config.privrejectadmin
-				if (run == 'reload'):
-					if (getlevel(sender) >= 20):
-						showdbg('Reload requested')
-
-						out = 'PRIVMSG ' + channel + ' :Reloading...'
-						return {'action': "reload"}
-					else:
-						out = 'PRIVMSG ' + channel + ' :' + config.privrejectadmin
-
-				# Generates a dummy error to test error-reporting capabilities. 
-				if (run == 'errtest'):
-					if (getlevel(sender) >= 20):
-						showdbg('Error test requested')
-						senddata('PRIVMSG ' + channel + ' :Error generated. Check the console.\n')
-						time.sleep(2)
-						raise(Exception("User-requested error"))
-					else:
-						out = 'PRIVMSG ' + channel + ' :' + config.privrejectadmin
-
-				# Modules management
-				if (run == 'modules'):
-					if (len(cmd) > 1):
-						# Reload looks at existing modules and reloads them
-						# You can also specify a specific module to reload
-						if cmd[1] == 'reload':
-							if getlevel(sender) >= config.reqprivlevels['modules']:
-								global library_dict
-								if len(cmd) == 2:	
-									
-									errored = []
-									for modName in library_dict:
-										try:
-											if reloadByName(modName):
-												pass
-											else:
-												errored.append(modName)
-
-										except:
-											showErr(traceback.format_exc())
-											errored.append(modName)
-									showdbg('Reloaded all modules')
-									out = 'PRIVMSG %s :Reloaded all modules. ' %(channel)
-									if errored:
-										out += 'The following modules encountered errors: '
-										for modName in errored:
-											out += modName + ', '
-										out = out[:-2] + '. '
-								else:
-									found = []
-									notFound = []
-									errored = []
-									for modName in cmd[2:]: 
-										
-										if modName in library_dict:
-											
-											try: 
-												if reloadByName(modName):
-													pass
-												else:
-													errored.append(modName)
-												found.append(modName)
-												
-
-											except:
-												showErr(traceback.format_exc())
-												errored.append(modName)
-
-										else:
-											notFound.append(modName)
-									
-									out = 'PRIVMSG %s :' %channel
-									if found:
-										out += 'Successfully reloaded: '
-										for modName in found:
-											out += modName + ', '
-										out = out[:-2] + '. '
-
-									if notFound:
-										out += 'Could not find: '
-										for modName in notFound:
-											out += modName + ', '
-										out = out[:-2] + '. '
-									
-									if errored:
-										out += 'Encountered errors with: '
-										for modName in errored:
-											out += modName + ', '
-										out = out[:-2] + '. '
-
-
-							else: 
-								out = 'PRIVMSG %s :%s' %(channel, config.privrejectgeneric)
-
-						# Rescan essentially redoes the original module scanning process
-						# Note that this doesn't necessarily reload a module. 
-						if cmd[1] == 'rescan':
-							if getlevel(sender) >= config.reqprivlevels['modules']: 
-								showdbg('Rescan requested')
-								funcregistry = {}
-								listenerregistry = {}
-								helpregistry = {}	
-								library_list = []
-								library_dict = {}
-								for file in os.listdir(os.path.abspath("modules")):
-									pname, fileext = os.path.splitext(file)
-									if fileext == '.py':
-										module = __import__(pname)
-										library_list.append(module)
-										library_dict[pname] = module
-										if hasattr(module,'register') and getattr(module, 'enabled', 1):
-											r = registryFuncs()
-											getattr(module, 'register')(r)
-								showdbg('Rescan complete')
-								out = 'PRIVMSG %s :Rescanned' %(channel) 
-							else: 
-								out = 'PRIVMSG %s :%s' %(channel, config.privrejectgeneric)
-						# Prints a list of functions or listeners
-						if cmd[1] == 'show':
-							if len(cmd) == 2:
-								out = 'PRIVMSG %s :Currently active modules: ' %(channel)
-								for item in library_dict:
-									if getattr(library_dict[item], 'enabled', True):
-										out += str(item) + ', '
-								out = out[:-2]
-							
-							if len(cmd) == 3:
-
-								if (cmd[2] == 'disabled'):
-									out = 'PRIVMSG %s :Currently active modules: ' %(channel)
-									for item in library_dict:
-										if not(getattr(library_dict[item], 'enabled', True)):
-											out += str(item) + ', '
-									out = out[:-2]
-
-								if (cmd[2] == 'allmods'):
-									out = 'PRIVMSG %s :Currently active modules: ' %(channel)
-									for item in library_dict:
-										out += str(item) + ', '
-									out = out[:-2]	
-
-								if (cmd[2] == 'functions'):
-									out = 'PRIVMSG %s :Currently active (non builtin) commands: ' %(channel)
-									for item in list(funcregistry):
-										
-										out += str(item)+', '
-									out = out[:-2]
-								
-								if (cmd[2] == 'listeners'):
-									out='PRIVMSG %s :Currently active (non builtin) listeners: ' %(channel)
-									for evtype in list(listenerregistry):
-										for listener in listenerregistry[evtype]:
-											function = listener[1]
-											fstr = str(function)
-											fstr = fstr.split(' ')[1]
-											out += '%s (%s), ' %(fstr, evtype)
-									out = out[:-2]
-
-								if (cmd[2] == 'help'):
-									out = 'PRIVMSG %s :Currently active (non builtin) help: ' %(channel)
-									for item in list(helpregistry):
-										out += str(item)+', '
-									out = out[:-2]
-	
-					else:
-						out = 'PRIVMSG %s :Wrong number of arguments. Usage: modules action [arguments] ' %(channel)
-
-
-				# The help system. Essentially a mini version of the command system. 
-				if (run == 'help'):
-					
-			
-					if len(cmd) == 1:
-						out = 'PRIVMSG ' + channel + ' :' + config.defaulthelp + ' Use help <command> for help on a particular command. To use a command either say ' + options.NICK + ': <command> or ' + options.cmdprefix + 'command.\n'
-					else:
-						cmd[1] = cmd[1].rstrip()
-						handled = 0
-
-						if handled == 1:
-							out = 'PRIVMSG ' + channel + ' :' + helpmsg
-						else:
-							if cmd[1] in helpregistry:
-								item = helpregistry[cmd[1]]
-								l = item[0]
-								
-								handled = 1
-								target = item[1]
-								
-								out = target(helpCmd(channel, cmd[1:]))
-								if out.find('PRIVMSG') == -1:
-									out = 'PRIVMSG ' + channel + ' :' + out
-
-
-							if handled == 1:
-								pass
-							else:
-								out = 'PRIVMSG ' + channel + ' :Either that command does not exist, or help has not been written.'
-			except:
-				showErr(traceback.format_exc())
-
-				out = 'PRIVMSG ' + channel + ' :An unspecified error has occurred'
-			
-			nodata = False
-			try: 		
-				if out == '(none)':
-					nodata = True
-			except:
-				pass
-			if nodata:
-				return {}
-			
-			
-			if True:
-				if (out):				
-					senddata(out + '\n')
-
-			# Try to run a module function since we didn't find an appropriate builtin
-				else:
-					if run in funcregistry:
-						target = funcregistry[run]
-						l = target[0]
-						# Pass all this stuff in via our msgObj object
-						msgObj = cmdMsg(channel, sender, options.NICK, cmd, run)
-						try: 
-							out = target[1](msgObj)
-							if (out.split(' ')[0] != 'PRIVMSG'):
-								out = 'PRIVMSG %s :%s\n' %(channel, out)
-						except:
-							showErr(traceback.format_exc())
-							
-
-
-					else: 
-						found = 0
-
-					# Send out data to the server, assuming there's something to send. 
-					try:
-						if (out):				
-							if (out[-1] != '\n'):
-								out += '\n'
-							senddata(out)
-
-						# If the command was not found, tell the user that.
-						# Note that this has to be enabled in config, since
-						# it can end up doing annoying things sometimes. 
-						elif config.cnf_enable:		
-							out = 'PRIVMSG ' + channel + ' :Command not found'
-							
-							senddata(out + '\n')
-
-					except:
-						showErr(traceback.format_exc())
-
-		# This function only returns stuff if we need to signal the main loop to exit. 
-		return {}
-
 	# main loop
 	s.settimeout(5) # This sets the max time to wait for data
 	# Note that this will also affect how often periodics are run
@@ -1242,7 +297,7 @@ def botmain(botsocket, conn, initconn):
 					try:
 						target(periodicObj)
 					except:
-						showErr(traceback.format_exc())
+						reportErr(sys.exc_info())
 	
 
 				time.sleep(1)
@@ -1258,7 +313,7 @@ def botmain(botsocket, conn, initconn):
 					e = lineEvent(line, s, conn)
 				except:
 					showdbg('Failed basic line parsing! Line: ' + line)
-					showErr(traceback.format_exc())
+					reportErr(sys.exc_info())
 				
 					
 
@@ -1287,7 +342,7 @@ def botmain(botsocket, conn, initconn):
 								return 2
 
 					except:
-						showErr(traceback.format_exc())
+						reportErr(sys.exc_info())
 	
 
 				# Respond to pings
@@ -1323,7 +378,7 @@ def botmain(botsocket, conn, initconn):
 							try:
 								target(e)
 							except:
-								showErr(traceback.format_exc())
+								reportErr(sys.exc_info())
 	
 					# Also run listeners who hook onto 'any'
 					if 'any' in listenerregistry:
@@ -1334,6 +389,1106 @@ def botmain(botsocket, conn, initconn):
 							try:
 								target(e)
 							except:
-								showErr(traceback.format_exc())
+								reportErr(sys.exc_info())
 
+
+# This big function is called when we want to parse an incoming PRIVMSG
+# e: the event, which we've already created
+def parse(e):
+	global authlist
+	global helpregistry
+	global funcregistry
+	global listenerregistry
+	
+	# Legacy
+	sender = e.nick
+	channel = e.channel
+	msg = e.message
+
+
+	# Figure out if it is a channel message or a private message
+	if (e.isPrivate):
+		isprivate = 1
+		channel = sender
+	else:
+		isprivate = 0
+
+	run = ''
+	out = ''
+	length = len(msg)
+
+	# Quick fix
+	if (length == 0):
+		msg = '(null)'
+
+
+	# There are three ways to call a command:
+	# #1: Use the command prefix, sett in options
+	if (msg[0] == options.cmdprefix):
+		cmd = msg[1:].split(' ')
+		run = cmd[0]
+		cmdstring = ' '.join(cmd)
+
+	msgparts = msg.split(' ')
+
+
+	# #2: Say the bot's name, followed by a colon and space
+	if ((msgparts[0].lower() == options.NICK.lower() + ':') and (len(msgparts) > 1)):
+		cmd = msgparts[1:]
+		run = cmd[0].rstrip()
+		cmdstring = ' '.join(cmd)
+
+	# #3: Directly send the bot a PM
+	if (isprivate == 1):
+		cmd = msgparts[0:]
+		run = cmd[0].rstrip()
+		cmdstring = ' '.join(cmd)
+	
+
+	# Do this stuff if it is determined that we should try
+	# to run a command
+	if (run):
+
+		msgObj = cmdMsg(channel, sender, options.NICK, cmd, run, isprivate)
+
+		funcs = {'test' : testFunc, 'join' : joinFunc, 'part' : partFunc,
+			'user' : userFunc, 'auth' : authFunc, 'auths' : authFunc, 'authenticate' : authFunc, 
+			'level' : levelFunc, 'deauth' : deauthFunc, 'register' : registerUserFunc, 
+			'pass' : passFunc, 'passwd' : passwdFunc, 'authdump' : authDump, 'errtest' : errTest,
+			'modules' : modFunc, 'help' : helpFunc, 'err' : errFunc, 'errors' : errFunc
+		}
+
+		
+
+		try: 
+			# Test command
+				
+			if run in funcs:
+				out = funcs[run](msgObj)
+
+			# Commands for stopping/starting/reloading/etc: This is important to read this.
+			# It's not incredibly intuitive. 
+			# reload: the wrapper one level above this bot (mvpybot.py) just does a reload()
+			# on the bot module, then restarts it. Saves authenticated users first. Does not
+			# use a new connection. 
+			# restart: restarts the bot. Saves auth list. Doesn't actually reload the bot
+			# so I'm not sure when you would actually want to use this. Uses same connection. 
+			# die: both the bot and the wrapper one level above it stop. If you ran mvpybot.py
+			# directly, it will stop. If you're running start.py, it will automatically be
+			# restarted. 
+			# Yes, this means that unlike most programs, 'reload' actually does more than 'restart'. 
+
+			if (run == 'restart'):
+				if (getlevel(sender) >= getPrivReq('power', 20)):
+					showdbg('Restart requested')
+					senddata('PRIVMSG %s :Restarting...\n' %channel)
+					return {'action': "restart"}
+				else:
+					out = config.privrejectadmin
+
+			elif (run == 'die'):
+				if (getlevel(sender) >= getPrivReq('power', 20)):
+					showdbg('Stop requested')
+					senddata('PRIVMSG %s :Stopping...\n' %channel)
+					return {'action': "die"}
+				else:
+					out = config.privrejectadmin
+
+			elif (run == 'reload'):
+				if (getlevel(sender) >= getPrivReq('power', 20)):
+					showdbg('Reload requested')
+					senddata('PRIVMSG %s :Reloading...\n' %channel)
+					return {'action': "reload"}
+				else:
+					out = config.privrejectadmin
+
+			# Generates a dummy error to test error-reporting capabilities. 
+		
+		except:
+			reportErr(sys.exc_info())
+
+
+			out = 'PRIVMSG ' + channel + ' :An unspecified error has occurred'
+		
+		nodata = False
+		try: 		
+			if out == True:
+				nodata = True
+		except:
+			pass
+		if nodata:
+			return {}
+		
+		
+		if True:
+			if (out):				
+				if (out[0:7] != 'PRIVMSG'):
+					out = 'PRIVMSG %s :%s' %(channel, out)
+					
+
+				senddata(out + '\n')
+
+		# Try to run a module function since we didn't find an appropriate builtin
+			else:
+				if run in funcregistry:
+					target = funcregistry[run]
+					l = target[0]
+					# Pass all this stuff in via our msgObj object
+					msgObj = cmdMsg(channel, sender, options.NICK, cmd, run, isprivate)
+					try: 
+						out = target[1](msgObj)
+						if (out.split(' ')[0] != 'PRIVMSG'):
+							out = 'PRIVMSG %s :%s\n' %(channel, out)
+					except:
+						reportErr(sys.exc_info())
+						
+
+
+				else: 
+					found = 0
+
+				# Send out data to the server, assuming there's something to send. 
+				try:
+					if (out):				
+						if (out[-1] != '\n'):
+							out += '\n'
+						senddata(out)
+
+					# If the command was not found, tell the user that.
+					# Note that this has to be enabled in config, since
+					# it can end up doing annoying things sometimes. 
+					elif config.cnf_enable:		
+						out = 'PRIVMSG ' + channel + ' :Command not found'
+						
+						senddata(out + '\n')
+
+				except:
+					reportErr(sys.exc_info())
+
+	# This function only returns stuff if we need to signal the main loop to exit. 
+	return {}
+
+# Class definitions
+
+
+
+# This is a function that can be used to call external programs
+# Be sure that the program does not hang, or else the bot will hang
+# To make it un-hangable, look at the math plugin for an example
+# of how to modify it.
+# And of course, MAKE SURE MODULES THAT USE THIS ARE VERY SECURE!
+# If you aren't planning on using any modules that make use of this, 
+# you may want to just commend this out. 
+def syscmd(command):
+	showdbg('SYSCMD called. Running "' + ' '.join(command) + '".')
+	result = Popen(command, stdout = PIPE).communicate()[0]
+	return result
+
+
+def getArticle(word):
+	if word[0] in ('a', 'e', 'i', 'o', 'u'):
+		return('an')
+	else:
+		return('a')
+
+def getPrivReq(priv, default = 0):
+	if priv in config.reqprivlevels:
+		return(config.reqprivlevels[priv])
+	else:
+		return(default)
+
+def hasPriv(nick, priv, default):
+	if (getlevel(nick) >= getPrivReq(priv, default)):
+		return True
+	else:
+		return False
+
+
+# Builtin command functions
+
+def testFunc(msg):
+	return('%s: test' %msg.nick)
+
+def partFunc(msg):
+	if hasPriv(msg.nick, 'chanMgmt', 20):
+		channel = msg.cmd[1]
+		senddata('PART %s\n' %channel)
+		return('Left channel %s' %channel)
+	else:
+		return('%s: %s' %(msg.nick, config.privrejectadmin))
+
+def joinFunc(msg):
+	if hasPriv(msg.nick, 'chanMgmt', 20):
+		channel = msg.cmd[1]
+		senddata('JOIN %s\n' %channel)
+		return('Joined channel %s' %channel)
+	else:
+		return('%s: %s' %(msg.nick, config.privrejectadmin))
+		
+def userFunc(msg):
+
+	if (len(msg.cmd) != 2):
+		return('Incorrect usage. Syntax: user <username>')
+
+	elif not(hasPriv(msg.nick, 'acctInfo', 0)):
+		return(config.privrejectgeneric)
+
+	else:
+
+		username = msg.cmd[1]
+
+		with open('users', 'r') as f:
+
+			for fline in f.readlines():
+
+				fline = fline.rstrip()
+				lineParts = fline.split(' ')
+				
+				if lineParts[0] == username:
+
+					fUser = lineParts[0]
+					# fPass = lineParts[1]
+					if conn.userAuth:
+						fLevel = int(lineParts[2])
+					else:
+						fLevel = int(lineParts[1])
+					fLevelStr = levelToStr(fLevel)
+					article = getArticle(fLevelStr)
+
+					return('%s is level %s (%s %s).' %(fUser, str(fLevel), article, fLevelStr))
+					
+		return('That user is not in the user list')
+				
+def authFunc(msg):
+
+	if not(conn.userAuth):
+		return(config.simpleAuthNotice)
+
+	elif len(msg.cmd) != 3:
+		return('Incorrect syntax. Usage: auth <username> <pass>')
+
+	elif not(msg.isPrivate):
+		return('''Use this in a /msg, don't use it in a channel. Now go change your passsword.''')
+	
+	elif getlevel(msg.nick) != 0:
+		return('You are already authenticated. If you would like to change accounts, you can deauth and try again.')
+
+	else:
+		iName = msg.cmd[1].rstrip()
+		iPass = msg.cmd[2].rstrip()
+
+		with open('users', 'r') as f:
+			correct = False
+			found = False
+			showdbg('%s is attempting to authenticate.' %iName)
+
+			for fLine in f.readlines():
+				fLine = fLine.rstrip()
+				lineParts = fLine.split(' ')
+
+				if lineParts[0] == iName:
+					found = True
+					fPass = lineParts[1]
+					fLevel = int(lineParts[2])
+
+					if iPass == fPass:
+						correct = True
+					elif ('HASH:' + sha(iPass.encode()).hexdigest()) == fPass:
+						correct = True
+
+						
+		if found:
+			if correct:
+				
+				authlist.append(aUser(msg.nick, iName, fLevel))
+
+				showdbg('%s is authenticated' %iName)
+
+				if msg.run == 'auths':
+					return(True)
+
+				else:
+					return('Password accepted, you are now authenticated')
+
+			else:
+				
+				showdbg('%s tried to authenticate, but their password was rejected' %iName)
+				return('Incorrect password')
+
+		else:
+
+			showdbg('%s tried to authenticate, but their username was not found' %iName)
+			return('Incorrect username')
+					
+def levelFunc(msg):
+	
+	if len(msg.cmd) == 1:
+		lNick = msg.nick
+
+	else:
+		lNick = cmd[1]
+
+	nLevel = getlevel(lNick)
+	strLevel = levelToStr(nLevel)
+
+	return('%s is level %s (%s %s)' %(lNick, str(nLevel), getArticle(strLevel), strLevel))
+
+def deauthFunc(msg):
+	
+	if not(conn.userAuth):
+		return(config.simpleAuthNotice)
+
+	else:
+		found = False
+		iName = msg.nick
+		if getlevel(iName) != 0:
+			for i in authlist:
+				
+				alName = i.nick
+				if alName == iName:
+					authlist.remove(i)
+					found = True
+
+			if found:
+				return('Deauthenticated')
+
+			else:
+				return('An error has occured')
+
+		else:
+			return('You are not authenticated')
+
+def registerUserFunc(msg):
+	
+	if not(conn.userAuth):
+		return(config.simpleAuthNotice)
+
+	else:
+		
+		if (len(msg.cmd) != 3):
+			return('Incorrect syntax. Usage: register <username> <password>')
+
+		else:
+			with open('users', 'r') as f:
+				valid = True
+				for fLine in f:
+					fLineSplit = fLine.split(' ')
+					if msg.cmd[1] == fLineSplit[0]:
+						valid = False
+						return('Sorry, that username is already taken')
+
+			if valid:
+				with open('users', 'w') as f:
+					fileOut = '%s HASH:%s %s\n' %(msg.cmd[1], sha(cmd[2].encode()).hexdigest(), config.newUserLevel)
+					f.write(fileOut)
+
+				return('Account created. You can now authenticate.')
+
+def chgUserPass(user, newPass):
+	
+	if not(conn.userAuth):
+
+		raise(Exception('Simple auth is enabled, so there are no passwords to change'))
+
+	else:
+
+		showdbg('Attempting to change password for %s' %user)
+
+		with open('users', 'r') as f:
+			outData = ''
+			found = False
 			
+			for fLine in f:
+				
+				lineSplit = fLine.split(' ')
+				
+
+
+				if user == lineSplit[0]:
+					outData += '%s HASH:%s %s' %(lineSplit[0], sha(newPass.encode()).hexdigest(), lineSplit[2])
+					showdbg('Found entry, modifying...')
+					found = True
+
+				else:
+					outData += fLine
+
+		if found:
+			with open('users', 'w') as f:
+				f.write(outData)
+				f.truncate()
+			
+			showdbg('Changed password for %s' %user)
+			return(True)
+
+		else:
+			
+			showdbg('Could not find user %s' %user)
+			return(False)
+				
+
+
+def passFunc(msg):
+	
+	if not(conn.userAuth):
+		return(config.simpleAuthNotice)
+
+	else:
+
+		if (len(msg.cmd) != 2):
+			return('Incorrect syntax. Usage: pass <password>')
+
+		else:
+
+			authEntry = getAuth(msg.nick)
+
+			if authEntry:
+				authName = authEntry.authName
+
+				result = chgUserPass(authName, msg.cmd[1])
+
+				if result:
+					return('Successfully changed password')
+
+				else:
+					return('An error has occurred')
+
+			else:
+				
+				return('You must be authtenticated to use this command')
+						
+
+def passwdFunc(msg):
+	
+	if not(conn.userAuth):
+		return(config.simpleAuthNotice)
+
+	elif (len(msg.cmd) != 3):
+		return('Incorrect syntax. Usage: passwd <username> <password>')
+
+	elif not(hasPriv(msg.nick, 'acctMgmt', 20)):
+		return(config.privrejectadmin)
+
+	else:
+		result = chgUserPass(msg.cmd[1], msg.cmd[2])
+
+		if result:
+			return('Successfully changed password for %s' %msg.cmd[1])
+
+		else:
+			return('Could not find user %s in the users file' %msg.cmd[1])
+
+def authDump(msg):
+	
+	if not(conn.userAuth):
+		return(config.simpleAuthNotice)
+
+	elif not(hasPriv(msg.nick, 'acctMgmt', 20)):
+		return(config.privrejectadmin)
+
+	else:
+		showdbg('Dumping auth list. Format is nick, authname, level')
+		for i in authlist:
+			showdbg('%s, %s, %s' %(i.nick, i.authName, str(i.level)))
+
+def errTest(msg):
+
+	if hasPriv(msg.nick, 'errors', 20):
+		showdbg('Error test requested')
+		senddata('PRIVMSG %s :Error requested. Check the console.\n' %msg.channel)
+		time.sleep(1)
+		raise(Exception('User-requested error'))
+	else:
+		return(config.privrejectadmin)
+
+
+
+def modFunc(msg):
+	
+	global listenerregistry
+	global helpregistry
+	global funcregistry
+	global library_dict
+
+	if (len(msg.cmd) > 1):
+		# Reload looks at existing modules and reloads them
+		# You can also specify a specific module to reload
+		if msg.cmd[1] == 'reload':
+			if hasPriv(msg.nick, 'modules', 20):
+				global library_dict
+				if len(msg.cmd) == 2:	
+					
+					errored = []
+					for modName in library_dict:
+						try:
+							if reloadByName(modName):
+								pass
+							else:
+								errored.append(modName)
+
+						except:
+							reportErr(sys.exc_info())
+							errored.append(modName)
+					showdbg('Reloaded all modules')
+					out = 'PRIVMSG %s :Reloaded all modules. ' %(msg.channel)
+					if errored:
+						out += 'The following modules encountered errors: '
+						for modName in errored:
+							out += modName + ', '
+						out = out[:-2] + '. '
+				else:
+					found = []
+					notFound = []
+					errored = []
+					for modName in msg.cmd[2:]: 
+						
+						if modName in library_dict:
+							
+							try: 
+								if reloadByName(modName):
+									pass
+								else:
+									errored.append(modName)
+								found.append(modName)
+								
+
+							except:
+								reportErr(sys.exc_info())
+								errored.append(modName)
+
+						else:
+							notFound.append(modName)
+					
+					out = 'PRIVMSG %s :' %msg.channel
+					if found:
+						out += 'Successfully reloaded: '
+						for modName in found:
+							out += modName + ', '
+						out = out[:-2] + '. '
+
+					if notFound:
+						out += 'Could not find: '
+						for modName in notFound:
+							out += modName + ', '
+						out = out[:-2] + '. '
+					
+					if errored:
+						out += 'Encountered errors with: '
+						for modName in errored:
+							out += modName + ', '
+						out = out[:-2] + '. '
+
+
+			else: 
+				out = 'PRIVMSG %s :%s' %(msg.channel, config.privrejectgeneric)
+
+		# Rescan essentially redoes the original module scanning process
+		# Note that this doesn't necessarily reload a module. 
+		if msg.cmd[1] == 'rescan':
+			if hasPriv(msg.nick, 'modules', 20):
+				showdbg('Rescan requested')
+				funcregistry = {}
+				listenerregistry = {}
+				helpregistry = {}	
+				library_list = []
+				library_dict = {}
+				for file in os.listdir(os.path.abspath("modules")):
+					pname, fileext = os.path.splitext(file)
+					if fileext == '.py':
+						module = __import__(pname)
+						library_list.append(module)
+						library_dict[pname] = module
+						if hasattr(module,'register') and getattr(module, 'enabled', 1):
+							r = registryFuncs()
+							getattr(module, 'register')(r)
+				showdbg('Rescan complete')
+				out = 'PRIVMSG %s :Rescanned' %(msg.channel) 
+			else: 
+				out = 'PRIVMSG %s :%s' %(msg.channel, config.privrejectgeneric)
+		# Prints a list of functions or listeners
+		if msg.cmd[1] == 'show':
+			if len(msg.cmd) == 2:
+				out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
+				for item in library_dict:
+					if getattr(library_dict[item], 'enabled', True):
+						out += str(item) + ', '
+				out = out[:-2]
+			
+			if len(msg.cmd) == 3:
+
+				if (msg.cmd[2] == 'disabled'):
+					out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
+					for item in library_dict:
+						if not(getattr(library_dict[item], 'enabled', True)):
+							out += str(item) + ', '
+					out = out[:-2]
+
+				if (msg.cmd[2] == 'allmods'):
+					out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
+					for item in library_dict:
+						out += str(item) + ', '
+					out = out[:-2]	
+
+				if (msg.cmd[2] == 'functions'):
+					out = 'PRIVMSG %s :Currently active (non builtin) commands: ' %(msg.channel)
+					for item in list(funcregistry):
+						
+						out += str(item)+', '
+					out = out[:-2]
+				
+				if (msg.cmd[2] == 'listeners'):
+					out='PRIVMSG %s :Currently active (non builtin) listeners: ' %(msg.channel)
+					for evtype in list(listenerregistry):
+						for listener in listenerregistry[evtype]:
+							function = listener[1]
+							fstr = str(function)
+							fstr = fstr.split(' ')[1]
+							out += '%s (%s), ' %(fstr, evtype)
+					out = out[:-2]
+
+				if (msg.cmd[2] == 'help'):
+					out = 'PRIVMSG %s :Currently active (non builtin) help: ' %(msg.channel)
+					for item in list(helpregistry):
+						out += str(item)+', '
+					out = out[:-2]
+
+	else:
+		out = 'PRIVMSG %s :Wrong number of arguments. Usage: modules action [arguments] ' %(msg.channel)
+
+
+	return(out)
+
+def helpFunc(msg):
+	
+	if len(msg.cmd) == 1:
+		return('PRIVMSG %s :%s Use help <command> for help on a particular command. To use a command either say %s: <command> or %scommand.\n' %(msg.channel, config.defaulthelp, builtins.NICK, options.cmdprefix))
+	else:
+		msg.cmd[1] = msg.cmd[1].rstrip()
+		handled = False
+
+		if msg.cmd[1] in helpregistry:
+			item = helpregistry[msg.cmd[1]]
+			l = item[0]
+			
+			handled = True
+			target = item[1]
+			
+			out = target(helpCmd(msg.channel, msg.cmd[1:]))
+			if out.find('PRIVMSG') == -1:
+				out = 'PRIVMSG %s :%s' %(msg.channel, out)
+
+			return(out)
+
+			return('Either that command does not exist, or help has not been written for it. ')
+
+def errFunc(msg):
+	if getlevel(msg.nick) < getPrivReq('errors', 20):
+		return config.privrejectadmin
+
+	elif len(msg.cmd) == 1:
+		return('There are currently %s stored errors' %int(len(builtins.errors)))
+
+	elif msg.cmd[1] == 'last':
+		if len(builtins.errors) > 0:
+			errString = fmtErr(builtins.errors[-1])
+			errLines = errString.splitlines()
+			for el in errLines:
+				senddata('PRIVMSG %s :%s\n' %(msg.channel, el))
+			return True
+		else:
+			return('There are no errors to report')
+	
+	else:
+		try:
+			errNum = int(msg.cmd[1])
+		except:
+			return('Syntax error. Usage: errors <errNum | last>.')
+
+		try:
+			err = builtins.errors[errNum]
+		except IndexError:
+			return('Error number is out of bounds')
+
+		errString = fmtErr(builtins.errors[errNum])
+		errLines = errString.splitlines()
+		for el in errLines:
+			senddata('PRIVMSG %s :%s\n' %(msg.channel, el))
+		return True
+
+
+
+
+
+def fmtErr(err):
+	errParts = traceback.format_exception(err[0], err[1], err[2])
+
+	errString = ''.join(errParts)
+
+	return errString
+
+	
+
+def reloadByName(modName):
+	
+	module = library_dict[modName]
+	builtins.lastMod = module
+
+	regs = registryFuncs()
+
+	for mod in funcregistry:
+		if mod[0] == modName:
+			funcregistry.pop(mod)
+
+	for mod in helpregistry:
+		if mod[0] == modName:
+			funcregistry.pop(mod)
+
+	for evtype in listenerregistry:
+		for mod in listenerregistry[evtype]:
+			if mod[0].__name__ == modName:
+				listenerregistry[evtype].remove(mod)
+
+
+	try:	
+		reload(module)
+	except:
+		showErr('Error reloading module %s' %modName)
+		reportErr(sys.exc_info())
+		return(False)
+		
+
+	if getattr(module, 'enabled', True):
+		
+		try:
+			getattr(module, 'register')(regs)
+			return(True)
+		except:
+			showErr('Error registering module %s' %modName)
+			reportErr(sys.exc_info())
+			return(False)
+
+	else:
+		return(True)
+		
+
+def registerfunction(name, function):
+	module = builtins.lastMod
+	funcregistry[name] = [module, function]
+
+def addlistener(event, function):
+	module = builtins.lastMod
+	if event in listenerregistry:
+		listenerregistry[event].append([module, function])
+	else:
+		listenerregistry[event] = []
+		listenerregistry[event].append([module, function])
+
+def addhelp(name, function):
+	module = builtins.lastMod
+	helpregistry[name] = [module, function]
+
+class registryFuncs:
+	def __init__(self):
+		self.registerfunction = registerfunction
+		self.addlistener = addlistener
+		self.addhelp = addhelp
+
+# Function to return the auth object of a nick
+def getAuth(name):
+	found = False
+	for i in authlist:
+		if i.nick == name:
+			found = True
+			result = i
+			break
+	if found:
+		return i
+	else:
+		return False
+		
+	
+	# Display data being received from the server
+	# Prefixes it with server name and a >, then logs it
+
+	def dispdata(todisp):
+		for line in todisp.splitlines():
+			outstr = '(%s)> %s\n' %(host, line.rstrip())
+			try:
+				sys.stdout.write(outstr)
+			except:
+				outstrEnc = outstr.encode('ascii', 'replace').decode()
+				sys.stdout.write(outstrEnc)
+			logdata(outstr)
+
+	# Output some debugging info to console/log
+	# Prefixes it with server name and a *
+	def showdbg(toshow):
+		for line in toshow.splitlines():
+			if line:
+				outstr = '(%s)* %s' %(conn.host, line.rstrip()) 
+				print(outstr)
+				logdata(outstr)
+	
+	def showErr(toshow):
+		for line in toshow.splitlines():
+			if line:
+				outstr = '(%s)! %s' %(conn.host, line.rstrip()) 
+				print(outstr)
+				logdata(outstr)
+
+	def reportErr(err):
+		formatted = traceback.format_exception(err[0], err[1], err[2])
+		for l in formatted:
+			showErr(l)
+		
+
+
+
+# Function for getting the level of somebody
+# Works with both implicit and explicit authentication. 
+def getlevel(name):
+	found = 0
+	iname = name
+	for i in authlist:
+		if i.nick == name:
+			found = 1
+			flevel = i.level
+	if found == 1:
+		return flevel
+	else:
+		return 0
+
+def getLevelStr(name):
+	return levelToStr(getlevel(name))
+
+def levelToStr(level):
+	if level < 0:
+		return('invalid')
+	try:
+		return(config.privilegelevels[level])
+	except: 
+		return(levelToStr(level - 1))
+
+# Same thing with this. 
+class helpCmd: 
+	def __init__(self, channel, cmd):
+		self.channel = channel
+		self.cmd = cmd
+
+# Not much to do here, just passing in some useful functions
+class periodic:
+	def __init__(self, socket, conninfo):
+		self.socket = socket
+		self.conninfo = conninfo
+		self.sendata = senddata
+		self.numlevel = numlevel
+		self.getlevel = getlevel
+
+# This is the class used for when an external function needs to
+# be called. This stuff gets mostly pre-processed so the contructor
+# doesn't do much. 
+class cmdMsg:
+	def __init__(self, channel, nick, botnick, cmd, run, isPrivate):
+		self.channel = channel
+		self.nick = nick
+		self.getlevel = getlevel
+		self.botnick = botnick
+		self.cmd = cmd
+		self.syscmd = syscmd
+		self.run = run
+		self.numlevel = getlevel
+		self.senddata = senddata
+		self.showdbg = showdbg
+		self.getLevelStr = getLevelStr
+		self.levelToStr = levelToStr
+		self.showErr = showErr
+		self.hasPriv = hasPriv
+		self.isPrivate = isPrivate
+
+# This is the big one. This is what gets passed to listeners. 
+# Here, the constructor actually does stuff. 
+# To-do: NICK events
+class lineEvent:
+	def __init__(self, line, socket, conninfo ):
+		self.line = line.rstrip()
+		self.socket = socket
+		self.conninfo = conninfo
+		self.senddata = senddata
+		self.getlevel = getlevel
+		self.numlevel = getlevel
+		self.showdbg = showdbg
+		self.showErr = showErr
+		self.getLevelStr = getLevelStr
+		self.levelToStr = levelToStr
+		self.linesplit = self.line.split(' ')
+		self.userString = ''
+		self.type = ''
+		self.syscmd = syscmd
+		self.hasPriv = hasPriv
+
+		if self.linesplit[0] == 'PING':
+			self.type = 'ping'
+			self.ping = self.line.split()
+			self.target = self.ping[1]
+			return(None)
+		
+		if self.linesplit[0] == 'ERROR':
+			self.type = 'error'
+			return(None)
+		
+		if self.linesplit[1] == 'PART':
+			self.type = 'part' 
+			self.userString = self.linesplit[0]
+			self.channel = self.linesplit[2]
+			if len(self.linesplit) >= 4:
+				self.reason = self.linesplit[3][1:]
+
+		if self.linesplit[1] == 'JOIN':
+			self.type = 'join'
+			self.userString = self.linesplit[0]
+			self.channel = self.linesplit[2]
+			if len(self.linesplit) >= 4:
+				self.reason = self.linesplit[3][1:]
+
+		if self.linesplit[1] =='NICK':
+			self.type = 'nick'
+			self.userString = self.linesplit[0]
+			self.newNick = self.linesplit[2]
+		
+		if self.linesplit[1] =='QUIT':
+			self.type = 'quit'
+			self.userString = self.linesplit[0]
+			self.reason = self.linesplit[2][1:]
+
+		if self.linesplit[1] == 'PRIVMSG':
+			self.type = 'privmsg'
+			self.userString = self.linesplit[0]
+			self.channel = self.linesplit[2]
+			if self.channel[0] == '#':
+				self.isPrivate = False
+			else:
+				self.isPrivate = True 
+			
+			if self.isPrivate:
+				self.channel = self.userString.split(':')[1].split('!')[0]
+
+			self.message = ' '.join(self.linesplit[3:])
+			if (self.message[0] == ':'):
+				self.message = self.message[1:]
+
+
+		if self.userString:
+			part1 = self.userString.split(':')[1]
+			part2 = part1.split('!')
+			part3 = part2[1].split('@')
+			self.nick = part2[0]
+			self.user = part3[0]
+			self.realName = part3[1]
+
+		if not(self.type):
+			self.type = self.linesplit[1]
+
+class aUser:
+	def __init__(self, nick, authName, level):
+		self.nick = nick
+		self.authName = authName
+		self.level = level
+
+	def rename(self, newNick):
+		self.nick = newNick
+
+	def chgLvl(self, newLevel):
+		self.level = newLevel
+	
+
+class asUser:
+	def __init__(self, nick, level):
+		self.nick = nick
+		self.authName = nick
+		self.level = level
+
+	def chgLvl(self, newLevel):
+		self.level = newLevel	
+
+
+
+# Display data being received from the server
+# Prefixes it with server name and a >, then logs it
+
+def dispdata(todisp):
+	for line in todisp.splitlines():
+		outstr = '(%s)> %s\n' %(host, line.rstrip())
+		try:
+			sys.stdout.write(outstr)
+		except:
+			outstrEnc = outstr.encode('ascii', 'replace').decode()
+			sys.stdout.write(outstrEnc)
+		logdata(outstr)
+
+# Output some debugging info to console/log
+# Prefixes it with server name and a *
+def showdbg(toshow):
+	for line in toshow.splitlines():
+		if line:
+			outstr = '(%s)* %s' %(conn.host, line.rstrip()) 
+			print(outstr)
+			logdata(outstr)
+
+def showErr(toshow):
+	for line in toshow.splitlines():
+		if line:
+			outstr = '(%s)! %s' %(conn.host, line.rstrip()) 
+			print(outstr)
+			logdata(outstr)
+
+def reportErr(err):
+	formatted = traceback.format_exception(err[0], err[1], err[2])
+	for l in formatted:
+		showErr(l)
+	builtins.errors.append(err)
+	
+
+# senddata: Send data to the server, output it to the console, and log it
+# senddata(string): uses the specified string, handling multiple lines properly
+# senddata(string, alt): displays/logs a different string, useful for hiding passwords
+# 	Note that this usage is *not* compatible with multi-line input
+def senddata(tosend, alt = False):
+	
+	global s
+		
+	sendparts = tosend.split('\n')
+
+	if (len(sendparts) > 2):
+		for part in sendparts[:-1]:
+			senddata(part + '\n')
+
+	else:
+		global lastMsgOut
+		if conn.throttle:
+			timeSinceLast = time.time() - lastMsgOut
+			if timeSinceLast < conn.throttle:
+				time.sleep(conn.throttle - timeSinceLast)
+		
+		s.sendall(tosend.encode())
+		lastMsgOut = time.time()
+
+		for part in sendparts:
+			if len(part)>1:
+				if alt:
+					part = alt
+				outstr = '(%s)< %s' %(host, part.rstrip())
+				print(outstr)
+					
+				logdata(outstr)
+
+# logdata(string): Puts the string in the log file, along with a timestamp
+# Seperates multi-line input automatically
+
+def logdata(data):
+	if options.logging:
+		try:	
+			with open('log.' + conn.host, 'a', encoding = 'utf-8') as logfile:
+				timestamp = time.strftime('[%y-%m-%d %H:%M:%S] ')
+				logfile.write(timestamp + data + '\n')
+				logfile.close()
+		except: 
+			print('!!!ERROR WITH LOG FILE!!!')
