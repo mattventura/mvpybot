@@ -30,7 +30,8 @@ def say(msg):
 
 def raw(msg):
 	if msg.getlevel(msg.nick) >= 20:
-		return(' '.join(msg.cmd[1:]))
+		msg.senddata(' '.join(msg.cmd[1:]) + '\n')
+		return(True)
 	else:
 		return('PRIVMSG %s :%s: %s' %(msg.channel, msg.sender, config.privrejectadmin))
 	

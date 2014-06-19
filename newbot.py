@@ -167,11 +167,13 @@ def botmain(botsocket, botConn, initconn):
 				for line in auLines:
 					line = line.rstrip()
 					lineParts = line.split(' ')
-					authlist.append(asUser(lineParts[0], int(lineParts[1])))
+					authlist.append(asUser(lineParts[0], int(lineParts[1]), lineParts[2:]))
 		except IOError:
+			reportErr(sys.exc_info())
 			showErr('Error loading implicit auth list.')
 			return 255
 		except: 
+			reportErr(sys.exc_info())
 			showErr('Unknown error while loading implicit auth list.')
 			return 255
 		
@@ -454,7 +456,8 @@ def parse(e):
 			'user' : userFunc, 'auth' : authFunc, 'auths' : authFunc, 'authenticate' : authFunc, 
 			'level' : levelFunc, 'deauth' : deauthFunc, 'register' : registerUserFunc, 
 			'pass' : passFunc, 'passwd' : passwdFunc, 'authdump' : authDump, 'errtest' : errTest,
-			'modules' : modFunc, 'help' : helpFunc, 'err' : errFunc, 'errors' : errFunc
+			'modules' : modFunc, 'help' : helpFunc, 'err' : errFunc, 'errors' : errFunc,
+			'reloadopts' : reloadOpts, 'reloadcfg' : reloadConfig, 'perm': permFunc
 		}
 
 		
@@ -507,7 +510,7 @@ def parse(e):
 			reportErr(sys.exc_info())
 
 
-			out = 'PRIVMSG ' + channel + ' :An unspecified error has occurred'
+			out = 'PRIVMSG %s :An error has occured in an internal function' %channel
 		
 		nodata = False
 		try: 		
@@ -536,10 +539,13 @@ def parse(e):
 					msgObj = cmdMsg(channel, sender, options.NICK, cmd, run, isprivate)
 					try: 
 						out = target[1](msgObj)
+						if out==True:
+							return({})
 						if (out.split(' ')[0] != 'PRIVMSG'):
 							out = 'PRIVMSG %s :%s\n' %(channel, out)
 					except:
 						reportErr(sys.exc_info())
+						out = 'PRIVMSG %s :An error has occured in a module' %channel
 						
 
 
@@ -599,8 +605,13 @@ def getPrivReq(priv, default = 0):
 		return(default)
 
 # Check if someone has a privilege
-def hasPriv(nick, priv, default):
-	if (getlevel(nick) >= getPrivReq(priv, default)):
+def hasPriv(nick, priv, default = 3):
+	auth = getAuth(nick)
+	if priv in auth.deny:
+		return False
+	elif priv in auth.grant:
+		return True
+	elif  (getlevel(nick) >= getPrivReq(priv, default)):
 		return True
 	else:
 		return False
@@ -636,8 +647,20 @@ def userFunc(msg):
 		return(config.privrejectgeneric)
 
 	else:
-
 		username = msg.cmd[1]
+		authEntry = userLookup(username)
+		if authEntry:
+			fUser = authEntry.authName
+			fLevel = authEntry.level
+			fLevelStr = levelToStr(fLevel)
+			article = getArticle(fLevelStr)
+			return('%s is level %s (%s %s).' %(fUser, str(fLevel), article, fLevelStr))
+		else:
+					
+			return('That user is not in the user list')
+				
+def userLookup(authName):
+
 
 		with open('users', 'r') as f:
 
@@ -646,21 +669,276 @@ def userFunc(msg):
 				fline = fline.rstrip()
 				lineParts = fline.split(' ')
 				
-				if lineParts[0] == username:
+
+				if lineParts[0] == authName:
 
 					fUser = lineParts[0]
 					# fPass = lineParts[1]
 					if conn.userAuth:
 						fLevel = int(lineParts[2])
+						fPerms = lineParts[3:]
 					else:
 						fLevel = int(lineParts[1])
-					fLevelStr = levelToStr(fLevel)
-					article = getArticle(fLevelStr)
+						fPerms = lineParts[2:]
 
-					return('%s is level %s (%s %s).' %(fUser, str(fLevel), article, fLevelStr))
+					return(uEntry(fUser, fLevel, fPerms))
+
+			return(False)
 					
-		return('That user is not in the user list')
+
 				
+def permFunc(msg):
+	
+	if not(hasPriv(msg.nick, 'acctMgmt', 20)):
+		return(config.privrejectgeneric)
+	
+	if len(msg.cmd) == 1:
+		return('''This function requires more arguments. See 'help perm' for details.''')
+
+	
+
+	# Make a copy since we'll be changing this
+	args = msg.cmd[1:]
+	argsFull = args # Just in case
+
+	# First part: -u for user or -n for nick
+	# -n can only work when the user is logged in
+	# -u should be able to work any timet
+	if args[0][0:2] == '-u':
+		user = True
+	elif args[0][0:2] == '-n':
+		user = False
+	else:
+		return('''Incorrect syntax. See 'help perm' for details. ''')
+	
+	if len(args[0]) > 2:
+		name = args[0][2:]
+		args = args[1:]
+	else:
+		name = args[1]
+		args = args[2:]
+	 
+		
+	# Actions: level, privs/priv
+	if args[0] == 'level':
+		action = 0
+		args = args[1:]
+	elif args[0] == 'privs' or args[0] == 'priv':
+		action = 1
+		args = args[1:]
+	else:
+		return('''Action must be 'level' or 'privs'.''')
+
+
+
+	if action == 0:
+		if args[0] == 'get':
+			if user:
+				authEntry = userLookup(name)
+				if authEntry:
+					level = authEntry.level
+					return('User %s is level %s' %(name, str(level)))
+				else:
+					return('That user was not found.')
+			else:	
+				authEntry = getAuth(name)
+				if authEntry:
+					level = authEntry.level
+					return('User %s is level %s' %(name, str(level)))
+				else:
+					return('That user was not found.')
+
+		elif args[0] == 'set':
+			try:
+				newLevel = int(args[1])
+			except:
+				return('Level must be an integer.')
+			if user:
+				if	chgUserLvl(name, newLevel):
+					return('''Changed level for user '%s' to %s. ''' %(name, str(newLevel)))
+				else:
+					return('User not found')
+
+
+			else:
+				authEntry = getAuth(name)
+				if authEntry:
+					authEntry.level = newLevel
+
+					if chgUserLvl(authEntry.authName, newLevel):
+						return('''Changed level for nick '%s' to %s. ''' %(name, str(newLevel)))
+					else:
+						return('''Changed level for user, but couldn't update file.''')
+				else:
+					return('User not found.')
+
+		else:
+			return('''Action must be 'get' or 'set'.''')
+					
+				
+	if action == 1:
+		if args[0] == 'get':
+			if user:
+				authEntry = userLookup(name)
+
+			else:
+				authEntry = getAuth(name)
+
+			if authEntry:
+				return('User %s has privileges: %s. ' %(name, formatPerms(authEntry.grant, authEntry.deny, ', ')))
+			else:
+				return('User not found.')
+
+
+		if args[0] == 'clear':
+			
+			if args[1:]:
+				if user:
+					authEntry = userLookup(name)
+					if authEntry:
+						grant = authEntry.grant
+						deny = authEntry.deny
+						for i in args[1:]:
+							if i in grant:
+								grant.remove(i)
+							elif i in deny:
+								deny.remove(i)
+						if chgUserPrivs(name, grant, deny):
+							return('Cleared privilege(s) from user %s.' %name)
+						else:
+							Raise(Exception('User was found initially, but not when updating.'))
+					else:
+						return('User not found.')
+				else:
+					authEntry = getAuth(name)
+					if authEntry:
+						grant = authEntry.grant
+						deny = authEntry.deny
+						for i in args[1:]:
+							if i in grant:
+								grant.remove(i)
+							elif i in deny:
+								deny.remove(i)
+
+						if chgUserPrivs(authEntry.authName, grant, deny):
+							return('''Cleared privilege(s) for nick '%s'.''' %name)
+						else:
+							return('Cleared privilege(s), but could not update file.')
+
+					else:
+						return('User not found.')
+							
+
+					
+			else:
+				if user:
+					if chgUserPrivs(name, set(), set()):
+						return('Cleared special privileges for user %s.' %name)
+					else:
+						return('User not found.')
+
+				else:
+					authEntry = getAuth(name)
+					if authEntry:
+						authEntry.grant = set()
+						authEntry.deny = set()
+						if chgUserPrivs(authEntry.authName, set(), set()):
+							return('Cleared special privileges for nick %s.' %name)
+						else:
+							return('Cleared special privileges for nick, but could not update file.')
+					else:
+						return('Could not find that nick.')
+
+		if args[0] == 'grant':
+			
+			if args[1:]:
+				if user:
+					authEntry = userLookup(name)
+					if authEntry:
+						grant = authEntry.grant
+						deny = authEntry.deny
+						for i in args[1:]:
+							if i in deny:
+								deny.remove(i)
+							grant.add(i)
+						if chgUserPrivs(name, grant, deny):
+							return('Changed privilege(s) for user %s.' %name)
+						else:
+							Raise(Exception('User was found initially, but not when updating.'))
+					else:
+						return('User not found.')
+				else:
+					authEntry = getAuth(name)
+					if authEntry:
+						grant = authEntry.grant
+						deny = authEntry.deny
+						for i in args[1:]:
+							if i in deny:
+								deny.remove(i)
+							grant.add(i)
+
+						if chgUserPrivs(authEntry.authName, grant, deny):
+							return('''Changed privileges for nick '%s'.''' %name)
+						else:
+							return('Changed privileges, but could not update file.')
+
+					else:
+						return('User not found.')
+			else:				
+				return('Not enough arguments.')
+	
+		if args[0] == 'deny':
+			
+			if args[1:]:
+				if user:
+					authEntry = userLookup(name)
+					if authEntry:
+						grant = authEntry.grant
+						deny = authEntry.deny
+						for i in args[1:]:
+							if i in grant:
+								grant.remove(i)
+							deny.add(i)
+						if chgUserPrivs(name, grant, deny):
+							return('Changed privilege(s) for user %s.' %name)
+						else:
+							Raise(Exception('User was found initially, but not when updating.'))
+					else:
+						return('User not found.')
+				else:
+					authEntry = getAuth(name)
+					if authEntry:
+						grant = authEntry.grant
+						deny = authEntry.deny
+						for i in args[1:]:
+							if i in grant:
+								grant.remove(i)
+							deny.add(i)
+
+						if chgUserPrivs(authEntry.authName, grant, deny):
+							return('''Changed privileges for nick '%s'.''' %name)
+						else:
+							return('Changed privileges, but could not update file.')
+
+					else:
+						return('User not found.')
+			else:				
+				return('Not enough arguments.')
+
+
+			
+
+def formatPerms(grant, deny, spacer = ' '):
+	outStr = ''
+	for i in grant:
+		outStr += '+%s%s' %(i, spacer)
+	for i in deny:
+		outStr += '-%s%s' %(i, spacer)
+	outStr = outStr[:(-1*len(spacer))]	
+	return(outStr)
+
+
+
 def authFunc(msg):
 
 	if not(conn.userAuth):
@@ -692,17 +970,21 @@ def authFunc(msg):
 					found = True
 					fPass = lineParts[1]
 					fLevel = int(lineParts[2])
-
+					perms = lineParts[3:]
 					if iPass == fPass:
 						correct = True
 					elif ('HASH:' + sha(iPass.encode()).hexdigest()) == fPass:
 						correct = True
 
+
 						
 		if found:
 			if correct:
-				
-				authlist.append(aUser(msg.nick, iName, fLevel))
+				if perms:
+					authlist.append(aUser(msg.nick, iName, fLevel, perms))
+				else:
+					authlist.append(aUser(msg.nick, iName, fLevel))
+					
 
 				showdbg('%s is authenticated' %iName)
 
@@ -724,16 +1006,35 @@ def authFunc(msg):
 					
 def levelFunc(msg):
 	
+	if not(hasPriv(msg.nick, 'acctInfo', 3)):
+		return(config.privrejectgeneric)
+
 	if len(msg.cmd) == 1:
 		lNick = msg.nick
 
 	else:
-		lNick = cmd[1]
+		lNick = msg.cmd[1]
 
-	nLevel = getlevel(lNick)
-	strLevel = levelToStr(nLevel)
+	lAuth = getAuth(lNick)
+	strLevel = levelToStr(lAuth.level)
 
-	return('%s is level %s (%s %s)' %(lNick, str(nLevel), getArticle(strLevel), strLevel))
+	outStr = ''
+
+	outStr += '%s is level %s (%s %s). ' %(lNick, str(lAuth.level), getArticle(strLevel), strLevel)
+
+	if lAuth.grant:
+		outStr += 'Granted permissions: '
+		for i in lAuth.grant:
+			outStr += i + ', '
+		outStr = outStr[:-2] + '. '
+
+	if lAuth.deny:
+		outStr += 'Denied permissions: '
+		for i in lAuth.deny:
+			outStr += i + ', '
+		outStr = outStr[:-2] + '. '
+
+	return(outStr)
 
 def deauthFunc(msg):
 	
@@ -799,7 +1100,13 @@ def chgUserPass(user, newPass):
 
 		showdbg('Attempting to change password for %s' %user)
 
-		with open('users', 'r') as f:
+		if conn.userAuth:
+			authFile = 'users'
+		else:
+			authFile = 'ausers'
+
+
+		with open(authFile, 'r') as f:
 			outData = ''
 			found = False
 			
@@ -810,7 +1117,7 @@ def chgUserPass(user, newPass):
 
 
 				if user == lineSplit[0]:
-					outData += '%s HASH:%s %s' %(lineSplit[0], sha(newPass.encode()).hexdigest(), lineSplit[2])
+					outData += '%s HASH:%s %s' %(lineSplit[0], sha(newPass.encode()).hexdigest(), ' '.join(lineSplit[2:]))
 					showdbg('Found entry, modifying...')
 					found = True
 
@@ -818,7 +1125,7 @@ def chgUserPass(user, newPass):
 					outData += fLine
 
 		if found:
-			with open('users', 'w') as f:
+			with open(authFile, 'w') as f:
 				f.write(outData)
 				f.truncate()
 			
@@ -830,7 +1137,97 @@ def chgUserPass(user, newPass):
 			showdbg('Could not find user %s' %user)
 			return(False)
 				
+# Function to change a user's level
+def chgUserLvl(user, newLevel):
+	
 
+	showdbg('Attempting to change level for %s' %user)
+
+	if conn.userAuth:
+		authFile = 'users'
+	else:
+		authFile = 'ausers'
+
+	with open(authFile, 'r') as f:
+		outData = ''
+		found = False
+		
+		for fLine in f:
+			
+			lineSplit = fLine.split(' ')
+			
+
+
+			if user == lineSplit[0]:
+				if conn.userAuth:
+					outData += '%s %s %s' %(' '.join(lineSplit[0:2]), str(newLevel), ' '.join(lineSplit[3:]))
+				else:
+					outData += '%s %s %s' %(lineSplit[0], str(newLevel), ' '.join(lineSplit[2:]))
+				showdbg('Found entry, modifying...')
+				found = True
+
+			else:
+				outData += fLine
+
+	if found:
+		with open(authFile, 'w') as f:
+			f.write(outData)
+			f.truncate()
+		
+		showdbg('Changed level for %s' %user)
+		return(True)
+
+	else:
+		
+		showdbg('Could not find user %s' %user)
+		return(False)
+			
+		
+# Function to change a user's privileges
+def chgUserPrivs(user, grant, deny):
+	
+
+	showdbg('Attempting to change privs for %s' %user)
+	if conn.userAuth:
+		authFile = 'users'
+	else:
+		authFile = 'ausers'
+
+
+	with open(authFile, 'r') as f:
+		outData = ''
+		found = False
+		
+		for fLine in f:
+			
+			lineSplit = fLine.split(' ')
+			
+			
+
+			if user == lineSplit[0]:
+				newPrivs = formatPerms(grant, deny)
+				if conn.userAuth:
+					outData += '%s %s\n' %(' '.join(lineSplit[0:3]), newPrivs)
+				else:
+					outData += '%s %s\n' %(' '.join(lineSplit[0:2]), newPrivs)
+				showdbg('Found entry, modifying...')
+				found = True
+
+			else:
+				outData += fLine
+
+	if found:
+		with open(authFile, 'w') as f:
+			f.write(outData)
+			f.truncate()
+		
+		showdbg('Changed privs for %s' %user)
+		return(True)
+
+	else:
+		
+		showdbg('Could not find user %s' %user)
+		return(False)
 
 def passFunc(msg):
 	
@@ -893,7 +1290,8 @@ def authDump(msg):
 	else:
 		showdbg('Dumping auth list. Format is nick, authname, level')
 		for i in authlist:
-			showdbg('%s, %s, %s' %(i.nick, i.authName, str(i.level)))
+			showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
+			return('Dumped auth list to console')
 
 def errTest(msg):
 
@@ -1011,6 +1409,8 @@ def modFunc(msg):
 				out = 'PRIVMSG %s :%s' %(msg.channel, config.privrejectgeneric)
 		# Prints a list of functions or listeners
 		if msg.cmd[1] == 'show':
+			if not(hasPriv(msg.nick, 'showmods', 3)):
+				return(config.privrejectgeneric)
 			if len(msg.cmd) == 2:
 				out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
 				for item in library_dict:
@@ -1130,6 +1530,23 @@ def fmtErr(err):
 
 	return errString
 
+
+def reloadOpts(msg):
+	if not(hasPriv(msg.nick, 'config', 20)):
+		return(config.privrejectadmin)
+	else:
+		showdbg('Reloading options...')
+		reload(options)
+		return('Reloaded options.py')
+
+
+def reloadConfig(msg):
+	if not(hasPriv(msg.nick, 'config', 20)):
+		return(config.privrejectadmin)
+	else:
+		showdbg('Reloading config...')
+		reload(config)
+		return('Reloaded config.py')
 	
 
 def reloadByName(modName):
@@ -1261,6 +1678,7 @@ def getlevel(name):
 		return flevel
 	else:
 		return 0
+
 
 def getLevelStr(name):
 	return levelToStr(getlevel(name))
@@ -1394,10 +1812,24 @@ class lineEvent:
 			self.type = self.linesplit[1]
 
 class aUser:
-	def __init__(self, nick, authName, level):
+	def __init__(self, nick, authName, level, perms = []):
 		self.nick = nick
 		self.authName = authName
 		self.level = level
+		self.grant = set()
+		self.deny = set()
+		for i in perms:
+			if i:
+				if i[0] == '+':
+					self.grant.add(i[1:])
+				elif i[0] == '-':
+					self.deny.add(i[1:])
+				else:
+					raise(Exception('Failed to process permission %s for user %s.' %(i, self.authName)))
+
+		for i in self.grant:
+			if i in self.deny:
+				raise(Exception('User %s has been granted and denied permission %s' %(self.authName, i)))
 
 	def rename(self, newNick):
 		self.nick = newNick
@@ -1407,14 +1839,46 @@ class aUser:
 	
 
 class asUser:
-	def __init__(self, nick, level):
+	def __init__(self, nick, level, perms):
 		self.nick = nick
 		self.authName = nick
 		self.level = level
+		self.grant = set()
+		self.deny = set()
+		for i in perms:
+			if i[0] == '+':
+				self.grant.add(i[1:])
+			elif i[0] == '-':
+				self.deny.add(i[1:])
+			else:
+				raise(Exception('Failed to process permission %s for user %s.' %(i, self.authName)))
+
+		for i in self.grant:
+			if i in self.deny:
+				raise(Exception('User %s has been granted and denied permission %s' %(self.authName, i)))
 
 	def chgLvl(self, newLevel):
 		self.level = newLevel	
 
+
+class uEntry:
+	def __init__(self, authName, level, perms = []):
+		self.authName = authName
+		self.level = level
+		self.grant = set()
+		self.deny = set()
+		for i in perms:
+			if i:
+				if i[0] == '+':
+					self.grant.add(i[1:])
+				elif i[0] == '-':
+					self.deny.add(i[1:])
+				else:
+					raise(Exception('Failed to process permission %s for user %s.' %(i, self.authName)))
+
+		for i in self.grant:
+			if i in self.deny:
+				raise(Exception('User %s has been granted and denied permission %s' %(self.authName, i)))
 
 
 # Display data being received from the server

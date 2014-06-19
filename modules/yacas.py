@@ -29,7 +29,7 @@ def math(msg):
 			#print 'ctime '+str(ctime)
 			if (stime + 3) < ctime:
 				os.kill(yacasstuff.pid, 9)
-				return 'PRIVMSG ' + channel + ' :Error: maximum time for calculation exceeded.'
+				return('Error: maximum time for calculation exceeded.')
 		cmdresult = yacasstuff.communicate()[0].decode()
 		out = cmdresult.rstrip()
 		return(out)
