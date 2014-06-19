@@ -608,7 +608,10 @@ def getPrivReq(priv, default = 0):
 
 # Check if someone has a privilege
 def hasPriv(nick, priv, default = 3):
-	auth = getAuth(nick)
+	try:
+		auth = getAuth(nick)
+	except UserNotFound:
+		return(0 >= getPrivReq(priv, default))
 	if priv in auth.deny:
 		return False
 	elif priv in auth.grant:
@@ -1668,39 +1671,7 @@ def getAuth(name):
 		raise(UserNotFound(name))
 		
 	
-	# Display data being received from the server
-	# Prefixes it with server name and a >, then logs it
 
-	def dispdata(todisp):
-		for line in todisp.splitlines():
-			outstr = '(%s)> %s\n' %(host, line.rstrip())
-			try:
-				sys.stdout.write(outstr)
-			except:
-				outstrEnc = outstr.encode('ascii', 'replace').decode()
-				sys.stdout.write(outstrEnc)
-			logdata(outstr)
-
-	# Output some debugging info to console/log
-	# Prefixes it with server name and a *
-	def showdbg(toshow):
-		for line in toshow.splitlines():
-			if line:
-				outstr = '(%s)* %s' %(conn.host, line.rstrip()) 
-				print(outstr)
-				logdata(outstr)
-	
-	def showErr(toshow):
-		for line in toshow.splitlines():
-			if line:
-				outstr = '(%s)! %s' %(conn.host, line.rstrip()) 
-				print(outstr)
-				logdata(outstr)
-
-	def reportErr(err):
-		formatted = traceback.format_exception(err[0], err[1], err[2])
-		for l in formatted:
-			showErr(l)
 		
 
 
