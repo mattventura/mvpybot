@@ -591,7 +591,9 @@ def syscmd(command):
 
 # Tries to guess whether 'a' or 'an' should be used with a word
 def getArticle(word):
-	if word[0] in ('a', 'e', 'i', 'o', 'u'):
+	if word.lower() == 'user':
+		return('a')
+	elif word[0] in ('a', 'e', 'i', 'o', 'u'):
 		return('an')
 	else:
 		return('a')
@@ -648,21 +650,26 @@ def userFunc(msg):
 
 	else:
 		username = msg.cmd[1]
-		authEntry = userLookup(username)
-		if authEntry:
-			fUser = authEntry.authName
-			fLevel = authEntry.level
-			fLevelStr = levelToStr(fLevel)
-			article = getArticle(fLevelStr)
-			return('%s is level %s (%s %s).' %(fUser, str(fLevel), article, fLevelStr))
-		else:
-					
+		try:
+			authEntry = userLookup(username)
+		except UserNotFound:
 			return('That user is not in the user list')
+
+		fUser = authEntry.authName
+		fLevel = authEntry.level
+		fLevelStr = levelToStr(fLevel)
+		article = getArticle(fLevelStr)
+		return('%s is level %s (%s %s).' %(fUser, str(fLevel), article, fLevelStr))
+					
 				
 def userLookup(authName):
 
+		if conn.userAuth:
+			authFile = 'users'
+		else:
+			authFile = 'ausers'
 
-		with open('users', 'r') as f:
+		with open(authFile,  'r') as f:
 
 			for fline in f.readlines():
 
@@ -683,8 +690,7 @@ def userLookup(authName):
 
 					return(uEntry(fUser, fLevel, fPerms))
 
-			return(False)
-					
+		raise(UserNotFound(authName))	
 
 				
 def permFunc(msg):
@@ -718,6 +724,8 @@ def permFunc(msg):
 		name = args[1]
 		args = args[2:]
 	 
+	if len(args) < 2:
+		return('''This function requires more arguments. See 'help perm' for details.''')
 		
 	# Actions: level, privs/priv
 	if args[0] == 'level':
@@ -734,19 +742,19 @@ def permFunc(msg):
 	if action == 0:
 		if args[0] == 'get':
 			if user:
-				authEntry = userLookup(name)
-				if authEntry:
-					level = authEntry.level
-					return('User %s is level %s' %(name, str(level)))
-				else:
-					return('That user was not found.')
+				try:
+					authEntry = userLookup(name)
+				except UserNotFound:
+					return('That user was not found')
+				level = authEntry.level
+				return('User %s is level %s' %(name, str(level)))
 			else:	
-				authEntry = getAuth(name)
-				if authEntry:
-					level = authEntry.level
-					return('User %s is level %s' %(name, str(level)))
-				else:
-					return('That user was not found.')
+				try:
+					authEntry = getAuth(name)
+				except UserNotFound:
+					return('That user was not found')
+				level = authEntry.level
+				return('User %s is level %s' %(name, str(level)))
 
 		elif args[0] == 'set':
 			try:
@@ -754,23 +762,27 @@ def permFunc(msg):
 			except:
 				return('Level must be an integer.')
 			if user:
-				if	chgUserLvl(name, newLevel):
-					return('''Changed level for user '%s' to %s. ''' %(name, str(newLevel)))
-				else:
+				try:
+					chgUserLvl(name, newLevel)
+				except UserNotFound:
 					return('User not found')
+				return('''Changed level for user '%s' to %s. ''' %(name, str(newLevel)))
 
 
 			else:
-				authEntry = getAuth(name)
-				if authEntry:
-					authEntry.level = newLevel
-
-					if chgUserLvl(authEntry.authName, newLevel):
-						return('''Changed level for nick '%s' to %s. ''' %(name, str(newLevel)))
-					else:
-						return('''Changed level for user, but couldn't update file.''')
-				else:
+				try:
+					authEntry = getAuth(name)
+				except UserNotFound:
 					return('User not found.')
+
+				authEntry.level = newLevel
+
+				try:
+					chgUserLvl(authEntry.authName, newLevel)
+				except:
+					return('''Changed level for user, but couldn't update file.''')
+
+				return('''Changed level for nick '%s' to %s. ''' %(name, str(newLevel)))
 
 		else:
 			return('''Action must be 'get' or 'set'.''')
@@ -778,112 +790,125 @@ def permFunc(msg):
 				
 	if action == 1:
 		if args[0] == 'get':
-			if user:
-				authEntry = userLookup(name)
+			try:
+				if user:
+					authEntry = userLookup(name)
 
-			else:
-				authEntry = getAuth(name)
-
-			if authEntry:
-				return('User %s has privileges: %s. ' %(name, formatPerms(authEntry.grant, authEntry.deny, ', ')))
-			else:
+				else:
+					authEntry = getAuth(name)
+			except UserNotFound:
 				return('User not found.')
+
+			return('User %s has privileges: %s. ' %(name, formatPerms(authEntry.grant, authEntry.deny, ', ')))
 
 
 		if args[0] == 'clear':
 			
 			if args[1:]:
 				if user:
-					authEntry = userLookup(name)
-					if authEntry:
-						grant = authEntry.grant
-						deny = authEntry.deny
-						for i in args[1:]:
-							if i in grant:
-								grant.remove(i)
-							elif i in deny:
-								deny.remove(i)
-						if chgUserPrivs(name, grant, deny):
-							return('Cleared privilege(s) from user %s.' %name)
-						else:
-							Raise(Exception('User was found initially, but not when updating.'))
-					else:
+					try:
+						authEntry = userLookup(name)
+					except UserNotFound:
 						return('User not found.')
+					grant = authEntry.grant
+					deny = authEntry.deny
+					for i in args[1:]:
+						if i in grant:
+							grant.remove(i)
+						elif i in deny:
+							deny.remove(i)
+					try:
+						chgUserPrivs(name, grant, deny)
+					except UserNotFound:
+						return('User was found initially, but not when updating.')
+					return('Cleared privilege(s) from user %s.' %name)
+
 				else:
-					authEntry = getAuth(name)
-					if authEntry:
-						grant = authEntry.grant
-						deny = authEntry.deny
-						for i in args[1:]:
-							if i in grant:
-								grant.remove(i)
-							elif i in deny:
-								deny.remove(i)
-
-						if chgUserPrivs(authEntry.authName, grant, deny):
-							return('''Cleared privilege(s) for nick '%s'.''' %name)
-						else:
-							return('Cleared privilege(s), but could not update file.')
-
-					else:
+					try:
+						authEntry = getAuth(name)
+					except UserNotFound:
 						return('User not found.')
+						
+
+					grant = authEntry.grant
+					deny = authEntry.deny
+					for i in args[1:]:
+						if i in grant:
+							grant.remove(i)
+						elif i in deny:
+							deny.remove(i)
+
+					try:
+						chgUserPrivs(authEntry.authName, grant, deny)
+					except UserNotFound:
+						return('Cleared privilege(s), but could not update file.')
+						
+					return('''Cleared privilege(s) for nick '%s'.''' %name)
 							
 
 					
 			else:
 				if user:
-					if chgUserPrivs(name, set(), set()):
-						return('Cleared special privileges for user %s.' %name)
-					else:
+					try:
+						chgUserPrivs(name, set(), set())
+					except UserNotFound:
 						return('User not found.')
 
+					return('Cleared special privileges for user %s.' %name)
+
 				else:
-					authEntry = getAuth(name)
-					if authEntry:
-						authEntry.grant = set()
-						authEntry.deny = set()
-						if chgUserPrivs(authEntry.authName, set(), set()):
-							return('Cleared special privileges for nick %s.' %name)
-						else:
-							return('Cleared special privileges for nick, but could not update file.')
-					else:
+					try:
+						authEntry = getAuth(name)
+					except UserNotFound:
 						return('Could not find that nick.')
+						
+					authEntry.grant = set()
+					authEntry.deny = set()
+					try:
+						chgUserPrivs(authEntry.authName, set(), set())
+					except UserNotFound:
+						return('Cleared special privileges for nick, but could not update file.')
+					return('Cleared special privileges for nick %s.' %name)
 
 		if args[0] == 'grant':
 			
 			if args[1:]:
 				if user:
-					authEntry = userLookup(name)
-					if authEntry:
-						grant = authEntry.grant
-						deny = authEntry.deny
-						for i in args[1:]:
-							if i in deny:
-								deny.remove(i)
-							grant.add(i)
-						if chgUserPrivs(name, grant, deny):
-							return('Changed privilege(s) for user %s.' %name)
-						else:
-							Raise(Exception('User was found initially, but not when updating.'))
-					else:
+					try:
+						authEntry = userLookup(name)
+					except UserNotFound:
 						return('User not found.')
+						
+					grant = authEntry.grant
+					deny = authEntry.deny
+					for i in args[1:]:
+						if i in deny:
+							deny.remove(i)
+						grant.add(i)
+					try: 
+						chgUserPrivs(name, grant, deny)
+					except UserNotFound:
+						return('User was found initially but not while updating')
+					return('Changed privilege(s) for user %s.' %name)
 				else:
-					authEntry = getAuth(name)
-					if authEntry:
-						grant = authEntry.grant
-						deny = authEntry.deny
-						for i in args[1:]:
-							if i in deny:
-								deny.remove(i)
-							grant.add(i)
-
-						if chgUserPrivs(authEntry.authName, grant, deny):
-							return('''Changed privileges for nick '%s'.''' %name)
-						else:
-							return('Changed privileges, but could not update file.')
-
-					else:
+					try:
+						authEntry = getAuth(name)
+					except UserNotFound:
 						return('User not found.')
+
+					grant = authEntry.grant
+					deny = authEntry.deny
+					for i in args[1:]:
+						if i in deny:
+							deny.remove(i)
+						grant.add(i)
+
+					try: 
+						chgUserPrivs(authEntry.authName, grant, deny)
+					except UserNotFound:
+						return('Changed privileges, but could not update file.')
+					return('''Changed privileges for nick '%s'.''' %name)
+
 			else:				
 				return('Not enough arguments.')
 	
@@ -891,37 +916,43 @@ def permFunc(msg):
 			
 			if args[1:]:
 				if user:
-					authEntry = userLookup(name)
-					if authEntry:
-						grant = authEntry.grant
-						deny = authEntry.deny
-						for i in args[1:]:
-							if i in grant:
-								grant.remove(i)
-							deny.add(i)
-						if chgUserPrivs(name, grant, deny):
-							return('Changed privilege(s) for user %s.' %name)
-						else:
-							Raise(Exception('User was found initially, but not when updating.'))
-					else:
+					try:
+						authEntry = userLookup(name)
+					except:
 						return('User not found.')
+
+					grant = authEntry.grant
+					deny = authEntry.deny
+					for i in args[1:]:
+						if i in grant:
+							grant.remove(i)
+						deny.add(i)
+					try:
+						chgUserPrivs(name, grant, deny)
+					except:
+						Raise(Exception('User was found initially, but not when updating.'))
+
+					return('Changed privilege(s) for user %s.' %name)
 				else:
-					authEntry = getAuth(name)
-					if authEntry:
-						grant = authEntry.grant
-						deny = authEntry.deny
-						for i in args[1:]:
-							if i in grant:
-								grant.remove(i)
-							deny.add(i)
-
-						if chgUserPrivs(authEntry.authName, grant, deny):
-							return('''Changed privileges for nick '%s'.''' %name)
-						else:
-							return('Changed privileges, but could not update file.')
-
-					else:
+					try:
+						authEntry = getAuth(name)
+					except UserNotFound:
 						return('User not found.')
+
+					grant = authEntry.grant
+					deny = authEntry.deny
+					for i in args[1:]:
+						if i in grant:
+							grant.remove(i)
+						deny.add(i)
+
+					try:
+						chgUserPrivs(authEntry.authName, grant, deny)
+					except UserNotFound:
+						return('Changed privileges, but could not update file.')
+					
+					return('''Changed privileges for nick '%s'.''' %name)
+
 			else:				
 				return('Not enough arguments.')
 
@@ -1015,7 +1046,10 @@ def levelFunc(msg):
 	else:
 		lNick = msg.cmd[1]
 
-	lAuth = getAuth(lNick)
+	try:
+		lAuth = getAuth(lNick)
+	except UserNotFound:
+		return('User not found.')
 	strLevel = levelToStr(lAuth.level)
 
 	outStr = ''
@@ -1130,12 +1164,12 @@ def chgUserPass(user, newPass):
 				f.truncate()
 			
 			showdbg('Changed password for %s' %user)
-			return(True)
+			return
 
 		else:
 			
 			showdbg('Could not find user %s' %user)
-			return(False)
+			raise(UserNotFound(user))
 				
 # Function to change a user's level
 def chgUserLvl(user, newLevel):
@@ -1175,12 +1209,12 @@ def chgUserLvl(user, newLevel):
 			f.truncate()
 		
 		showdbg('Changed level for %s' %user)
-		return(True)
+		return
 
 	else:
 		
 		showdbg('Could not find user %s' %user)
-		return(False)
+		raise(UserNotFound(user))
 			
 		
 # Function to change a user's privileges
@@ -1222,12 +1256,18 @@ def chgUserPrivs(user, grant, deny):
 			f.truncate()
 		
 		showdbg('Changed privs for %s' %user)
-		return(True)
+		return
 
 	else:
 		
 		showdbg('Could not find user %s' %user)
-		return(False)
+		raise(UserNotFound(user))
+
+class UserNotFound(Exception):
+	def __init__(self, user):
+		self.user = user
+	def __str__(self):
+		return(repr('Could not find user %s') %self.user)
 
 def passFunc(msg):
 	
@@ -1625,7 +1665,7 @@ def getAuth(name):
 	if found:
 		return i
 	else:
-		return False
+		raise(UserNotFound(name))
 		
 	
 	# Display data being received from the server
