@@ -727,7 +727,7 @@ def permFunc(msg):
 		name = args[1]
 		args = args[2:]
 	 
-	if len(args) < 2:
+	if len(args) < 1:
 		return('''This function requires more arguments. See 'help perm' for details.''')
 		
 	# Actions: level, privs/priv
@@ -737,13 +737,17 @@ def permFunc(msg):
 	elif args[0] == 'privs' or args[0] == 'priv':
 		action = 1
 		args = args[1:]
+	elif args[0] == 'add':
+		action = 2
 	else:
 		return('''Action must be 'level' or 'privs'.''')
 
 
 
 	if action == 0:
-		if args[0] == 'get':
+		if len(args) == 0:
+			return('Not enough arguments.')
+		elif args[0] == 'get':
 			if user:
 				try:
 					authEntry = userLookup(name)
@@ -792,7 +796,9 @@ def permFunc(msg):
 					
 				
 	if action == 1:
-		if args[0] == 'get':
+		if len(args) == 0:
+			return('Not enough arguments.')		
+		elif args[0] == 'get':
 			try:
 				if user:
 					authEntry = userLookup(name)
@@ -959,7 +965,17 @@ def permFunc(msg):
 			else:				
 				return('Not enough arguments.')
 
-
+	if action == 2:
+		if conn.userAuth:
+			return('To add users in explicit auth mode, user the register command.')
+		else:
+			try:
+				addUser(name)
+			except UserAlreadyExistsError:
+				return('Error: User already exists')
+			return('Added user %s' %name)
+			
+		
 			
 
 def formatPerms(grant, deny, spacer = ' '):
@@ -1109,21 +1125,55 @@ def registerUserFunc(msg):
 			return('Incorrect syntax. Usage: register <username> <password>')
 
 		else:
-			with open('users', 'r') as f:
-				valid = True
-				for fLine in f:
-					fLineSplit = fLine.split(' ')
-					if msg.cmd[1] == fLineSplit[0]:
-						valid = False
-						return('Sorry, that username is already taken')
+			try:
+				addUser(msg.cmd[1], msg.cmd[2])
+			except UserAlreadyExistsError:
+				return('Sorry, that username is already taken')
+			return('Account created. You can now authenticate.')
 
-			if valid:
-				with open('users', 'w') as f:
-					fileOut = '%s HASH:%s %s\n' %(msg.cmd[1], sha(cmd[2].encode()).hexdigest(), config.newUserLevel)
-					f.write(fileOut)
 
-				return('Account created. You can now authenticate.')
+def addUser(name, password = None, level = config.newUserLevel, grant = set(), deny = set()):
+	
+	if conn.userAuth:
+		if password == None:
+			raise(NeedPasswordError())
+		authFile = 'users'
+	else:
+		if password != None:
+			raise(PassNotNeededError())
+		authFile = 'ausers'
 
+
+	with open(authFile, 'r') as f:
+		valid = True
+		for fLine in f:
+			fLineSplit = fLine.split(' ')
+			if name == fLineSplit[0]:
+				valid = False
+				raise(UserAlreadyExistsError(name))
+
+	if valid:
+		with open(authFile, 'a') as f:
+			if conn.userAuth:
+				fileOut = '%s HASH:%s %s %s\n' %(name, sha(password.encode()).hexdigest(), str(config.newUserLevel), formatPerms(grant, deny))
+			else:
+				fileOut = '%s %s %s\n' %(name, str(config.newUserLevel), formatPerms(grant, deny))
+			f.write(fileOut)
+
+
+class NeedPasswordError(Exception):
+	def __str__(self):
+		return('Explicit users need passwords')
+
+class PassNotNeededError(Exception):
+	def __str__(self):
+		return('Implicit users cannot have passwords')
+
+class UserAlreadyExistsError(Exception):
+	def __str__(self):
+		return('User %s already exists' %self.user)
+	def __init__(self, user):
+		self.user = user
 
 
 # Function to change a user's password
@@ -1270,7 +1320,7 @@ class UserNotFound(Exception):
 	def __init__(self, user):
 		self.user = user
 	def __str__(self):
-		return(repr('Could not find user %s') %self.user)
+		return('Could not find user %s' %self.user)
 
 def passFunc(msg):
 	
@@ -1544,6 +1594,17 @@ def errFunc(msg):
 			return True
 		else:
 			return('There are no errors to report')
+
+	elif msg.cmd[1] == 'list':
+		if len(builtins.errors) > 0:
+			outStr = 'Stored errors: '
+			for i in range(len(builtins.errors)):
+				errName = builtins.errors[i][0].__name__
+				outStr += '%s: %s, ' %(str(i), errName)
+			outStr = outStr[:-2] + '. '
+			return(outStr)
+		else:
+			return('No stored errors to report.')
 	
 	else:
 		try:
