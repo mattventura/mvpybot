@@ -35,6 +35,7 @@ import inspect
 import builtins
 import traceback
 from imp import reload
+import re
 
 
 
@@ -453,11 +454,11 @@ def parse(e):
 		msgObj = cmdMsg(channel, sender, options.NICK, cmd, run, isprivate)
 
 		funcs = {'test' : testFunc, 'join' : joinFunc, 'part' : partFunc,
-			'user' : userFunc, 'auth' : authFunc, 'auths' : authFunc, 'authenticate' : authFunc, 
+			'userinfo' : userinfoFunc, 'auth' : authFunc, 'auths' : authFunc, 'authenticate' : authFunc, 
 			'level' : levelFunc, 'deauth' : deauthFunc, 'register' : registerUserFunc, 
 			'pass' : passFunc, 'passwd' : passwdFunc, 'authdump' : authDump, 'errtest' : errTest,
 			'modules' : modFunc, 'help' : helpFunc, 'err' : errFunc, 'errors' : errFunc,
-			'reloadopts' : reloadOpts, 'reloadcfg' : reloadConfig, 'perm': permFunc
+			'reloadopts' : reloadOpts, 'reloadcfg' : reloadConfig, 'perm' : userMgmtFunc, 'user' : userMgmtFunc
 		}
 
 		
@@ -643,7 +644,7 @@ def joinFunc(msg):
 	else:
 		return('%s: %s' %(msg.nick, config.privrejectadmin))
 		
-def userFunc(msg):
+def userinfoFunc(msg):
 
 	if (len(msg.cmd) != 2):
 		return('Incorrect usage. Syntax: user <username>')
@@ -696,13 +697,13 @@ def userLookup(authName):
 		raise(UserNotFound(authName))	
 
 				
-def permFunc(msg):
+def userMgmtFunc(msg):
 	
 	if not(hasPriv(msg.nick, 'acctMgmt', 20)):
 		return(config.privrejectgeneric)
 	
 	if len(msg.cmd) == 1:
-		return('''This function requires more arguments. See 'help perm' for details.''')
+		return('''This function requires more arguments. See 'help user' for details.''')
 
 	
 
@@ -718,7 +719,7 @@ def permFunc(msg):
 	elif args[0][0:2] == '-n':
 		user = False
 	else:
-		return('''Incorrect syntax. See 'help perm' for details. ''')
+		return('''Incorrect syntax. See 'help user' for details. ''')
 	
 	if len(args[0]) > 2:
 		name = args[0][2:]
@@ -728,7 +729,7 @@ def permFunc(msg):
 		args = args[2:]
 	 
 	if len(args) < 1:
-		return('''This function requires more arguments. See 'help perm' for details.''')
+		return('''This function requires more arguments. See 'help user' for details.''')
 		
 	# Actions: level, privs/priv
 	if args[0] == 'level':
@@ -740,7 +741,7 @@ def permFunc(msg):
 	elif args[0] == 'add':
 		action = 2
 	else:
-		return('''Action must be 'level' or 'privs'.''')
+		return('''Action must be 'add', 'level' or 'privs'.''')
 
 
 
@@ -1590,6 +1591,9 @@ def errFunc(msg):
 			errString = fmtErr(builtins.errors[-1])
 			errLines = errString.splitlines()
 			for el in errLines:
+				if config.privacy:
+					el = re.sub('/home/.*?/', '/home/***/', el)
+				
 				senddata('PRIVMSG %s :%s\n' %(msg.channel, el))
 			return True
 		else:
