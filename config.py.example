@@ -23,6 +23,9 @@ privilegelevels = {
 	0 : 'none'  #don't touch this line
 }
 
+# Default level for new users
+newUserLevel = 3
+
 # Configure the required privilege levels required for various functions.
 # Modules is reloading, enabling, and disabling, while showmods is 
 # for 'read-only' functions. 
@@ -30,7 +33,15 @@ privilegelevels = {
 reqprivlevels = {
 	'modules' : 20,
 	'showmods' : 3
-	}
+	'power': 20,
+	'errors': 20,
+	'acctMgmt': 20, 
+	'acctInfo': 0,
+	'chanMgmt': 20,
+	'config': 20,
+	
+
+}
 
 # If debug is set to 0, modules that fail will do so silently, and will not interrupt the bot's operation.
 # However, the standard Python error message is not displayed. 
@@ -41,9 +52,11 @@ debug = 0
 
 
 # Display a "command not found message"
-cnf_enable = False
-#cnf_enable = True 
+cnf_enable = True
 
 defaulthelp = "This is mypybot, a bot written in Python."
 
 simpleAuthNotice = 'This bot is using implicit authentication. You do not need to use any authentication or registry commands.'
+
+# Censor names of /home directories when displaying errors
+privacy = True
