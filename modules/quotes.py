@@ -3,6 +3,7 @@
 enabled = 1
 
 import random
+import config
 
 quoteFilePath = 'modules/quotesList'
 
@@ -12,7 +13,10 @@ def register(r):
 
 def quote(msg):
 	if (len(msg.cmd) == 1):
-		return('PRIVMSG %s :%s\n' %(msg.channel, randomQuote()))
+		if msg.hasPriv(msg.nick, 'quotes.get', 0):
+			return('PRIVMSG %s :%s\n' %(msg.channel, randomQuote()))
+		else:
+			return(config.privrejectgeneric)
 	elif (len(msg.cmd) == 2):
 		try: 
 			num = int(msg.cmd[1])
@@ -20,6 +24,8 @@ def quote(msg):
 		except:
 			return('PRIVMSG %s :Syntax error. Usage: quote <number>.\n' %msg.channel)
 	elif msg.cmd[1] == 'add':
+		if not(msg.hasPriv(msg.nick, 'quotes.add', 0)):
+			return(config.privrejectgeneric)
 		if msg.cmd[2][0] == '.':
 			return('PRIVMSG %s :The quote cannot start with a period.' %msg.channel)
 		else:
