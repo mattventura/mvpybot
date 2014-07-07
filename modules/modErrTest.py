@@ -9,7 +9,7 @@ def register(r):
 
 def modErrTest(msg):
 	
-	if not(msg.hasPriv(msg.sender, 'errors', 20)):
+	if not(msg.hasPriv(msg.nick, 'errors', 20)):
 		return config.privrejectadmin
 
 	else:
