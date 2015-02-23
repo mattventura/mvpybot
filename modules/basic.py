@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Moving some of the basic commands from the bot coree to here
 import config

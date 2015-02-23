@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 #In an attempt to slim down the main executable, I have moved
 #all the help texts to this file.

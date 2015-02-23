@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 #    MVpybot, a Python IRC bot.
 #    Copyright (C) 2009-2014 Matt Ventura

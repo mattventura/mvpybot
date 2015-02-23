@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # This is a nick protection plugin. 
 # The bot may or may not react well to having its nick forcibly changed, 
