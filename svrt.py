@@ -164,6 +164,7 @@ class ircSrv:
 		line = ''
 		while (line.find('001') < 1):
 			line = self._recvRaw()
+			self.showin(line)
 
 		self.showdbg('Connected')
 
