@@ -27,34 +27,37 @@ builtins.host = host
 builtins.errors = []
 
 
-cspass = conn.csp
+#cspass = conn.csp
 
-channels = conn.chans
+#channels = conn.chans
 
 # Connect the socket
-s = socket.socket() 
-s.connect((host, int(port)))
+#s = socket.socket() 
+#s.connect((host, int(port)))
 
-initconn = 1
+#initconn = 1
 
 import newbot
 
-
+connInst = conn
 
 def mainloop():
 	while True:
-		try:
-			initconn
-		except:
-			initconn = 1
 
-		botstatus = newbot.botmain(s, conn, initconn)
+
+		botstatus = newbot.botmain(connInst)
+		# Die
 		if botstatus == 0:
 			return 0
+		# Restart
 		if botstatus == 1:
+			connInst.disconnect()
+			connInst
 			initconn = 0
+		# Error
 		if botstatus == 255:
 			return 1
+		# Reload
 		if botstatus == 2:
 			initconn = 0
 			reload(newbot)

@@ -32,7 +32,7 @@ newUserLevel = 3
 
 reqprivlevels = {
 	'modules' : 20,
-	'showmods' : 3
+	'showmods' : 3,
 	'power': 20,
 	'errors': 20,
 	'acctMgmt': 20, 

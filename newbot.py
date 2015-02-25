@@ -59,7 +59,7 @@ import config
 # Allow easy importing from the modules folder
 sys.path.append("modules")
 
-def botmain(botsocket, botConn, initconn):
+def botmain(botConn):
 
 	# Expose connection to other functions
 	global conn
@@ -72,11 +72,6 @@ def botmain(botsocket, botConn, initconn):
 
 	if conn.throttle:
 		lastMsgOut = 0	
-
-	# Our socket
-	# It comes pre-connected
-	global s
-	s = botsocket 
 
 	# Announce that we are logging
 	logdata(time.strftime('---- [ Session starting at %y-%m-%d %H:%M:%S ] ----'))
@@ -184,11 +179,13 @@ def botmain(botsocket, botConn, initconn):
 	port = conn.port
 
 	# More legacy stuff
-	builtins.host = host
+	builtins.host = conn.host
+
+	# Set up logging
+	conn.setLogger(logdata)
 
 	# Legacy variable names
 	cspass = conn.csp
-	channels = conn.chans
 
 	# Initialize these to almost-blank strings to avoid some problems
 	line = ' '
@@ -196,59 +193,13 @@ def botmain(botsocket, botConn, initconn):
 
 	# The variable initconn tells us if we need to do a full connection (True) 
 	# or if we get to re-use it (False)
-	if initconn:
-
-		# If we have a password, send it first 
-		if conn.password:
-			senddata('PASS %s\n' %(conn.password), 'PASS <censored>')
-		# Tell the server the nick
-		senddata('NICK %s\n' %(options.NICK)) 
-		line = s.recv(1024).decode()
-		dispdata(line)
-		time.sleep(1)
-		s.settimeout(5)
-		# Some servers have some anti-exploit stuff enabled, where you
-		# have to respond to a ping really early on to make sure you're 
-		# not a spoofer or the victim of an exploit. 
-		try:
-			line = s.recv(1024).decode()
-			dispdata(line)
-			if (line.find('PING') == 0):
-				pingValue = line.split(" ")[1]
-				senddata("PONG " + pingValue)
-		except:
-			pass
-			
-
-		# Send the USER line
-		senddata(conn.userString + '\n')  
-
-		s.settimeout(60)
-
-		# Try to wait until we know we're connected
-		while (line.find('001')<1):
-			line = s.recv(1024).decode()
-			dispdata(line)
-
-		showdbg('Connected')
-
-		# Identify with chanserv
-		if cspass:
-			out = 'PRIVMSG nickserv identify ' + cspass + '\n'
-			senddata(out)
-
-		# Join channels.
-		for chan in channels:
-			out = 'JOIN ' + chan + '\n'
-			senddata(out)
-
-		showdbg('Joined channels')
-	
+	if conn.fullyDone:
+		pass
 	else:
+		conn.initialize()
 
-		showdbg('''Didn't need to perform a full connection init''')
-
-		
+	channels = conn.chans
+	
 	# For if we're reloading, this tries to reload the old auth list
 	def loadauthlist():
 		return builtins.authlist	
@@ -258,19 +209,19 @@ def botmain(botsocket, botConn, initconn):
 		try:
 			authlist = loadauthlist()
 		except:
-			# This is a fix for stuff
+			# If there's no auth list to load, load a blank one
 
 			authlist = []
 
 
 	# main loop
-	s.settimeout(5) # This sets the max time to wait for data
+	conn.s.settimeout(5) # This sets the max time to wait for data
 	# Note that this will also affect how often periodics are run
 
 	while True:
 		linebuffer = False
 		try:
-			linebuffer = s.recv(1024).decode()
+			linebuffer = conn.recv()
 			if not(linebuffer):
 				# Check if there was a socket error. If there was, tell the wrapper that. 
 				logdata(time.strftime('---- [ Session closed at %y-%m-%d %H:%M:%S ] ---- (Reason: lost connection)'))
@@ -284,13 +235,9 @@ def botmain(botsocket, botConn, initconn):
 			pass
 		
 
-		while linebuffer and linebuffer[-1] != '\n':
-			linebuffer += s.recv(1024).decode()
-			
-
-		# If we got no damage from the server, run periodics
+		# If we got no data from the server, run periodics
 		if not(linebuffer):
-			type = "periodic"
+			type = 'periodic'
 			if type in listenerregistry:
 				for function in listenerregistry[type]:
 					l = function[0]
@@ -312,14 +259,15 @@ def botmain(botsocket, botConn, initconn):
 				line = lines[0]		
 				lines.pop(0)
 				try:
-					e = lineEvent(line, s, conn)
+					e = lineEvent(line, conn)
 				except:
 					showdbg('Failed basic line parsing! Line: ' + line)
 					reportErr(sys.exc_info())
+					continue
 				
 					
 
-				dispdata(line)
+				#dispdata(line)
 
 				# If the data we received was a PRIVMSG, do the usual privmsg parsing
 				if e.type == 'privmsg':
@@ -347,10 +295,10 @@ def botmain(botsocket, botConn, initconn):
 						reportErr(sys.exc_info())
 	
 
-				# Respond to pings
-				if e.type == 'ping':
-					out = 'PONG ' + e.target + '\n'
-					senddata(out)
+				# Responding to pings is now part of the server object
+				#if e.type == 'ping':
+				#	out = 'PONG ' + e.target + '\n'
+				#	senddata(out)
 
 				# Fail gracefuly if the server gives us an error. 
 				if e.type == 'error':
@@ -1808,11 +1756,11 @@ class cmdMsg:
 # Here, the constructor actually does stuff. 
 # To-do: NICK events
 class lineEvent:
-	def __init__(self, line, socket, conninfo ):
+	def __init__(self, line, conninfo ):
 		self.line = line.rstrip()
-		self.socket = socket
 		self.conninfo = conninfo
-		self.senddata = senddata
+		self.conn = conninfo
+		self.senddata = conninfo.send
 		self.getlevel = getlevel
 		self.numlevel = getlevel
 		self.showdbg = showdbg
@@ -1976,14 +1924,12 @@ def showdbg(toshow):
 	for line in toshow.splitlines():
 		if line:
 			outstr = '(%s)* %s' %(conn.host, line.rstrip()) 
-			print(outstr)
 			logdata(outstr)
 
 def showErr(toshow):
 	for line in toshow.splitlines():
 		if line:
 			outstr = '(%s)! %s' %(conn.host, line.rstrip()) 
-			print(outstr)
 			logdata(outstr)
 
 def reportErr(err):
@@ -1999,37 +1945,13 @@ def reportErr(err):
 # 	Note that this usage is *not* compatible with multi-line input
 def senddata(tosend, alt = False):
 	
-	global s
-		
-	sendparts = tosend.split('\n')
-
-	if (len(sendparts) > 2):
-		for part in sendparts[:-1]:
-			senddata(part + '\n')
-
-	else:
-		global lastMsgOut
-		if conn.throttle:
-			timeSinceLast = time.time() - lastMsgOut
-			if timeSinceLast < conn.throttle:
-				time.sleep(conn.throttle - timeSinceLast)
-		
-		s.sendall(tosend.encode())
-		lastMsgOut = time.time()
-
-		for part in sendparts:
-			if len(part)>1:
-				if alt:
-					part = alt
-				outstr = '(%s)< %s' %(host, part.rstrip())
-				print(outstr)
-					
-				logdata(outstr)
+	conn.send(tosend, alt)
 
 # logdata(string): Puts the string in the log file, along with a timestamp
 # Seperates multi-line input automatically
 
 def logdata(data):
+	print(data)
 	if options.logging:
 		try:	
 			with open('log.' + conn.host, 'a', encoding = 'utf-8') as logfile:
