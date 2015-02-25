@@ -2,6 +2,7 @@
 
 import time
 import socket
+from splitter import splitCall
 
 class ircSrv:
 	
@@ -34,18 +35,19 @@ class ircSrv:
 		if self.logfunc:
 			self.logfunc(data)
 
-	def showout(self, out, alt):
-		if alt:
-			out = alt
+	@splitCall
+	def showout(self, out):
 		outstr = '(%s)< %s' %(self.host, out.rstrip())
 
 		self.logData(outstr)
 
+	@splitCall
 	def showin(self, out):
 		outstr = '(%s)> %s' %(self.host, out.rstrip())
 		self.logData(outstr)
 
 
+	@splitCall
 	def showdbg(self, out):
 		outstr = '(%s)* %s' %(self.host, out.rstrip())
 		self.logData(outstr)
@@ -67,15 +69,15 @@ class ircSrv:
 		# handle pings here too
 		while data and data[-1] != '\n':
 			data += self._recvRaw()
-			
-		if (data.find('PING') == 0):
-			self.sendPing(data.split(' ')[1])
-		
+
 		if len(data) > 1:
 			lines = data.split('\n')
 			for line in lines:
-				self.showin(line)
-			
+				if len(line) > 1:
+					self.showin(line)		
+
+		if (data.find('PING') == 0):
+			self.sendPing(data.split(' ')[1])
 
 		return data
 
@@ -107,7 +109,10 @@ class ircSrv:
 			
 			for part in sendparts:
 				if len(part) > 1:
-					self.showout(part, alt)
+					if alt:
+						self.showout(alt)
+					else:
+						self.showout(part)
 	
 
 	def initialize(self):
@@ -118,7 +123,9 @@ class ircSrv:
 		self.fullyDone = True
 
 	def disconnect(self):
-		pass
+		self.socket.close()
+		self.isConnected = False
+		self.fullyDone = False
 
 	def connSocket(self):
 		host = self.host
@@ -129,9 +136,6 @@ class ircSrv:
 		self.s = s
 		self.isConnected = True
 
-	def sendPing(self, param):
-		outStr = 'PONG %s' %param
-		self.send(outStr)
 
 	# Tell the server basic parameters after we connect
 	def handShake(self):
@@ -150,14 +154,8 @@ class ircSrv:
 		self.showin(line)
 		time.sleep(1)
 		self.s.settimeout(5)
-		try:
-			line = self._recvRaw()
-			self.showin(line)
-			if (line.find('PING') == 0):
-				self.sendPing(line.split(' ')[1])
-		except:
-			pass
 
+		# Send USER string
 		self.send(self.userString)
 
 		self.s.settimeout(5)
@@ -174,7 +172,10 @@ class ircSrv:
 		self.privmsg('nickserv', 'identify %s' %csp)
 		self.showdbg('Identified with nickserv')
 
-	
+	def sendPing(self, param):
+		outStr = 'PONG %s' %param
+		self.send(outStr)
+
 	def joinChans(self):
 		self.chans = []
 		for chan in self.initChans:
@@ -188,6 +189,48 @@ class ircSrv:
 		# actually successful
 		self.chans.append(channel)
 
+	def partChannel(self, channel):
+		self.send('PART %s' %channel)
+		self.chans.remove(channel)
+
+	def privmsg(self, channel, text):
+		self.send('PRIVMSG %s :%s' %(channel, text))
+
+	def kickNick(self, channel, nick, message = False):
+		if message:
+			self.send('KICK %s %s %s' %(channel, user, message))
+		else:
+			self.send('KICK %s %s' %(channel, user))
+
+	def banNick(self, channel, nick, duration):
+		# Ignore duration, it's just there as a placeholder
+		# for servers that actually do support durations. 
+		self.banUser(channel, nick = nick)
+	
+	# Accepts either a full user string, or constructs one out of provided nick/ident/host
+	def banUser(self, channel, nick = '*', ident = '*', host = '*', user = False):
+		if not(user):
+			user = '%s!%s@%s' %(nick, ident, host)
+		self.setChanMode(channel, '+b', user)
+
+	def unBanNick(self, channel, nick):
+		self.unBanUser(channel, nick = nick)
+
+	def unBanUser(self, channel, nick = '*', ident = '*', host = '*', user = False):
+		if not(user):
+			user = '%s!%s@%s' %(nick, ident, host)
+		self.setChanMode(channel, '-b', user)
+
+	def setChanMode(channel, mode, extraArgs = False):
+		if extraArgs:
+			self.send('MODE %s %s %s' %(channel, mode, extraArgs))
+		else:
+			self.send('MODE %s %s' %(channel, mode))
+
+	def setUserMode(nick, mode):
+		self.send('MODE %s %s' %(nick, mode))
+
+
 
 
 
@@ -195,6 +238,9 @@ class ircSrv:
 
 # Other server classes
 
+# Twitch.tv chat, with throttling built in. 
+# Use this if the bot is not modded, or twitch will
+# eat messages if they are sent too fast in succession. 
 class twIrc(ircSrv):
 	
 	def __init__(self, chans, authkey):
@@ -208,6 +254,20 @@ class twIrc(ircSrv):
 		self.throttle = 2.5
 		self.isConnected = False
 
+	def kickNick(self, channel, nick, message = False):
+		self.privmsg(channel, '.timeout %s 1')
+
+	def banNick(self, channel, nick, duration):
+		# Ignore duration, it's just there as a placeholder
+		# for servers that actually do support durations. 
+		self.privmsg(channel, '.ban %s')
+
+	def unBanNick(self, channel, nick):
+		self.privmsg(channel, '.unban %s')
+
+# twitch.tv chat with no throttling built in
+# Use this if the bot is modded, as moderators
+# can send messages in quick succession. 
 class twIrcNt(twIrc):
 	
 	def __init__(self, chans, authkey):

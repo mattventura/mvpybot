@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Moving some of the basic commands from the bot coree to here
+# Moving some of the basic commands from the bot core to here
 import config
 
 def register(r):
@@ -23,13 +23,13 @@ def register(r):
 
 
 def say(msg):
-	if msg.getlevel(msg.nick) >= 20:
+	if msg.hasPriv(msg.nick, 'basic.say', 20):
 		return('PRIVMSG %s :%s' %(msg.cmd[1], ' '.join(msg.cmd[2:])))
 	else:
 		return('PRIVMSG %s :%s: %s' %(msg.channel, msg.sender, config.privrejectadmin))
 
 def raw(msg):
-	if msg.getlevel(msg.nick) >= 20:
+	if msg.hasPriv(msg.nick, 'basic.raw', 20):
 		msg.senddata(' '.join(msg.cmd[1:]) + '\n')
 		return(True)
 	else:
@@ -37,18 +37,28 @@ def raw(msg):
 	
 
 def uptime(msg):
-	return('PRIVMSG %s :Uptime is %s' %(msg.channel, msg.syscmd(['uptime']).decode()))
+	if msg.hasPriv(msg.nick, 'sysinfo', 0):
+		return('PRIVMSG %s :Uptime is %s' %(msg.channel, msg.syscmd(['uptime']).decode()))
+	else:
+		return(config.privrejectgeneric)
+
 	
 def hostname(msg):
-	return('PRIVMSG %s :Hostname is %s' %(msg.channel, msg.syscmd(['hostname']).decode()))
+	if msg.hasPriv(msg.nick, 'sysinfo', 0):
+		return('PRIVMSG %s :Hostname is %s' %(msg.channel, msg.syscmd(['hostname']).decode()))
+	else:
+		return(config.privrejectgeneric)
 	
 def free(msg):
-	cmdresult = msg.syscmd(['free']).decode()
-	out = ''
-	for line in cmdresult.split('\n')[:-1]:
-		outadd = 'PRIVMSG %s :%s\n' %(msg.channel, line)
-		out += outadd
-	return(out)
+	if msg.hasPriv(msg.nick, 'sysinfo', 0):
+		cmdresult = msg.syscmd(['free']).decode()
+		out = ''
+		for line in cmdresult.split('\n')[:-1]:
+			outadd = 'PRIVMSG %s :%s\n' %(msg.channel, line)
+			out += outadd
+		return(out)
+	else:
+		return(config.privrejectgeneric)
 
 def echo(msg):
 	reply = ' '.join(msg.cmd[1:])

@@ -224,6 +224,7 @@ def botmain(botConn):
 			linebuffer = conn.recv()
 			if not(linebuffer):
 				# Check if there was a socket error. If there was, tell the wrapper that. 
+				# TODO: make the bot handle reconnects internally
 				logdata(time.strftime('---- [ Session closed at %y-%m-%d %H:%M:%S ] ---- (Reason: lost connection)'))
 				return 255
 	
@@ -242,7 +243,7 @@ def botmain(botConn):
 				for function in listenerregistry[type]:
 					l = function[0]
 					target = function[1]
-					periodicObj = periodic(s, conn)
+					periodicObj = periodic(conn)
 					try:
 						target(periodicObj)
 					except:
@@ -254,6 +255,7 @@ def botmain(botConn):
 		# What to do if we did get data
 		else:
 			# If the server dumped a bunch of lines at once, split them
+			# TODO: check if we actually still need this
 			lines = linebuffer.split('\n')
 			while len(lines) > 1:	 
 				line = lines[0]		
@@ -354,6 +356,7 @@ def parse(e):
 	sender = e.nick
 	channel = e.channel
 	msg = e.message
+	conn = e.conn
 
 
 	# Figure out if it is a channel message or a private message
@@ -399,9 +402,9 @@ def parse(e):
 	# to run a command
 	if (run):
 
-		msgObj = cmdMsg(channel, sender, options.NICK, cmd, run, isprivate)
+		msgObj = cmdMsg(conn, channel, sender, options.NICK, cmd, run, isprivate)
 
-		funcs = {'test' : testFunc, 'join' : joinFunc, 'part' : partFunc,
+		funcs = {'test' : testFunc, 
 			'userinfo' : userinfoFunc, 'auth' : authFunc, 'auths' : authFunc, 'authenticate' : authFunc, 
 			'level' : levelFunc, 'deauth' : deauthFunc, 'register' : registerUserFunc, 
 			'pass' : passFunc, 'passwd' : passwdFunc, 'authdump' : authDump, 'errtest' : errTest,
@@ -417,7 +420,7 @@ def parse(e):
 			if run in funcs:
 				out = funcs[run](msgObj)
 
-			# Commands for stopping/starting/reloading/etc: This is important to read this.
+			# Commands for stopping/starting/reloading/etc: This is important so read this.
 			# It's not incredibly intuitive. 
 			# reload: the wrapper one level above this bot (mvpybot.py) just does a reload()
 			# on the bot module, then restarts it. Saves authenticated users first. Does not
@@ -432,7 +435,7 @@ def parse(e):
 			if (run == 'restart'):
 				if (getlevel(sender) >= getPrivReq('power', 20)):
 					showdbg('Restart requested')
-					senddata('PRIVMSG %s :Restarting...\n' %channel)
+					conn.privmsg(channel,  'Restarting...')
 					return {'action': "restart"}
 				else:
 					out = config.privrejectadmin
@@ -440,7 +443,7 @@ def parse(e):
 			elif (run == 'die'):
 				if (getlevel(sender) >= getPrivReq('power', 20)):
 					showdbg('Stop requested')
-					senddata('PRIVMSG %s :Stopping...\n' %channel)
+					conn.privmsg(channel,  'Stopping...')
 					return {'action': "die"}
 				else:
 					out = config.privrejectadmin
@@ -448,7 +451,7 @@ def parse(e):
 			elif (run == 'reload'):
 				if (getlevel(sender) >= getPrivReq('power', 20)):
 					showdbg('Reload requested')
-					senddata('PRIVMSG %s :Reloading...\n' %channel)
+					conn.privmsg(channel,  'Reloading...')
 					return {'action': "reload"}
 				else:
 					out = config.privrejectadmin
@@ -459,7 +462,7 @@ def parse(e):
 			reportErr(sys.exc_info())
 
 
-			out = 'PRIVMSG %s :An error has occured in an internal function' %channel
+			out = 'An error has occured in an internal function' %channel
 		
 		nodata = False
 		try: 		
@@ -473,11 +476,13 @@ def parse(e):
 		
 		if True:
 			if (out):				
+				# out might either be a formatted PRIVMSG or just some text
+				# that should be sent to the correct place
+				# Actually, it should never be formatted anymore. 
 				if (out[0:7] != 'PRIVMSG'):
-					out = 'PRIVMSG %s :%s' %(channel, out)
-					
-
-				senddata(out + '\n')
+					conn.privmsg(channel, out)
+				else:
+					conn.send(out + '\n')
 
 		# Try to run a module function since we didn't find an appropriate builtin
 			else:
@@ -485,7 +490,7 @@ def parse(e):
 					target = funcregistry[run]
 					l = target[0]
 					# Pass all this stuff in via our msgObj object
-					msgObj = cmdMsg(channel, sender, options.NICK, cmd, run, isprivate)
+					msgObj = cmdMsg(conn, channel, sender, options.NICK, cmd, run, isprivate)
 					try: 
 						out = target[1](msgObj)
 						if out==True:
@@ -506,7 +511,7 @@ def parse(e):
 					if (out):				
 						if (out[-1] != '\n'):
 							out += '\n'
-						senddata(out)
+						conn.send(out)
 
 					# If the command was not found, tell the user that.
 					# Note that this has to be enabled in config, since
@@ -514,7 +519,7 @@ def parse(e):
 					elif config.cnf_enable:		
 						out = 'PRIVMSG ' + channel + ' :Command not found'
 						
-						senddata(out + '\n')
+						conn.send(out + '\n')
 
 				except:
 					reportErr(sys.exc_info())
@@ -575,23 +580,6 @@ def hasPriv(nick, priv, default = 3):
 
 def testFunc(msg):
 	return('%s: test' %msg.nick)
-
-def partFunc(msg):
-	if hasPriv(msg.nick, 'chanMgmt', 20):
-		channel = msg.cmd[1]
-		senddata('PART %s\n' %channel)
-		return('Left channel %s' %channel)
-	else:
-		return('%s: %s' %(msg.nick, config.privrejectadmin))
-
-def joinFunc(msg):
-	if hasPriv(msg.nick, 'chanMgmt', 20):
-		channel = msg.cmd[1]
-		senddata('JOIN %s\n' %channel)
-		return('Joined channel %s' %channel)
-	else:
-		return('%s: %s' %(msg.nick, config.privrejectadmin))
-		
 def userinfoFunc(msg):
 
 	if (len(msg.cmd) != 2):
@@ -1339,7 +1327,7 @@ def errTest(msg):
 
 	if hasPriv(msg.nick, 'errors', 20):
 		showdbg('Error test requested')
-		senddata('PRIVMSG %s :Error requested. Check the console.\n' %msg.channel)
+		msg.conn.send('PRIVMSG %s :Error requested. Check the console.\n' %msg.channel)
 		time.sleep(1)
 		raise(Exception('User-requested error'))
 	else:
@@ -1542,7 +1530,7 @@ def errFunc(msg):
 				if config.privacy:
 					el = re.sub('/home/.*?/', '/home/***/', el)
 				
-				senddata('PRIVMSG %s :%s\n' %(msg.channel, el))
+				msg.conn.send('PRIVMSG %s :%s\n' %(msg.channel, el))
 			return True
 		else:
 			return('There are no errors to report')
@@ -1572,13 +1560,14 @@ def errFunc(msg):
 		errString = fmtErr(builtins.errors[errNum])
 		errLines = errString.splitlines()
 		for el in errLines:
-			senddata('PRIVMSG %s :%s\n' %(msg.channel, el))
+			msg.conn.send('PRIVMSG %s :%s\n' %(msg.channel, el))
 		return True
 
 
 
 
 
+# Format an error trace into a more friendly format. 
 def fmtErr(err):
 	errParts = traceback.format_exception(err[0], err[1], err[2])
 
@@ -1587,6 +1576,7 @@ def fmtErr(err):
 	return errString
 
 
+# Reload options.py
 def reloadOpts(msg):
 	if not(hasPriv(msg.nick, 'config', 20)):
 		return(config.privrejectadmin)
@@ -1596,6 +1586,7 @@ def reloadOpts(msg):
 		return('Reloaded options.py')
 
 
+# Reload config.py
 def reloadConfig(msg):
 	if not(hasPriv(msg.nick, 'config', 20)):
 		return(config.privrejectadmin)
@@ -1605,6 +1596,7 @@ def reloadConfig(msg):
 		return('Reloaded config.py')
 	
 
+# Reload a module by name
 def reloadByName(modName):
 	
 	module = library_dict[modName]
@@ -1648,10 +1640,12 @@ def reloadByName(modName):
 		return(True)
 		
 
+# Register a new function
 def registerfunction(name, function):
 	module = builtins.lastMod
 	funcregistry[name] = [module, function]
 
+# Add a new listener
 def addlistener(event, function):
 	module = builtins.lastMod
 	if event in listenerregistry:
@@ -1660,6 +1654,7 @@ def addlistener(event, function):
 		listenerregistry[event] = []
 		listenerregistry[event].append([module, function])
 
+# Add a new help page
 def addhelp(name, function):
 	module = builtins.lastMod
 	helpregistry[name] = [module, function]
@@ -1723,10 +1718,11 @@ class helpCmd:
 
 # Not much to do here, just passing in some useful functions
 class periodic:
-	def __init__(self, socket, conninfo):
-		self.socket = socket
-		self.conninfo = conninfo
-		self.sendata = senddata
+	def __init__(self, conn):
+		self.conninfo = conn
+		self.conn = conn
+		self.socket = conn.socket
+		self.sendata = conn.send
 		self.numlevel = numlevel
 		self.getlevel = getlevel
 		self.hasPriv = hasPriv
@@ -1735,7 +1731,7 @@ class periodic:
 # be called. This stuff gets mostly pre-processed so the contructor
 # doesn't do much. 
 class cmdMsg:
-	def __init__(self, channel, nick, botnick, cmd, run, isPrivate):
+	def __init__(self, conn, channel, nick, botnick, cmd, run, isPrivate):
 		self.channel = channel
 		self.nick = nick
 		self.getlevel = getlevel
@@ -1744,23 +1740,24 @@ class cmdMsg:
 		self.syscmd = syscmd
 		self.run = run
 		self.numlevel = getlevel
-		self.senddata = senddata
+		self.senddata = conn.send
 		self.showdbg = showdbg
 		self.getLevelStr = getLevelStr
 		self.levelToStr = levelToStr
 		self.showErr = showErr
 		self.hasPriv = hasPriv
 		self.isPrivate = isPrivate
+		self.conn = conn
 
 # This is the big one. This is what gets passed to listeners. 
 # Here, the constructor actually does stuff. 
 # To-do: NICK events
 class lineEvent:
-	def __init__(self, line, conninfo ):
+	def __init__(self, line, conn):
 		self.line = line.rstrip()
-		self.conninfo = conninfo
-		self.conn = conninfo
-		self.senddata = conninfo.send
+		self.conninfo = conn
+		self.conn = conn
+		self.senddata = conn.send
 		self.getlevel = getlevel
 		self.numlevel = getlevel
 		self.showdbg = showdbg
