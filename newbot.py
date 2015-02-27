@@ -1383,7 +1383,8 @@ def modFunc(msg):
         if msg.cmd[1] == 'reload':
             if hasPriv(msg.nick, 'modules', 20):
                 global library_dict
-                if len(msg.cmd) == 2:    
+                # User did not specify which module(s) to reload, so reload them all
+                if len(msg.cmd) == 2:
                     
                     errored = []
                     for modName in library_dict:
@@ -1391,13 +1392,16 @@ def modFunc(msg):
                             if reloadByName(modName):
                                 pass
                             else:
+                                # If the reload was unsuccessful, report it. 
                                 errored.append(modName)
 
                         except:
+                            # Put it on the error stack so we can actually see what went wrong 
                             reportErr(sys.exc_info())
                             errored.append(modName)
                     showdbg('Reloaded all modules')
                     out = 'PRIVMSG %s :Reloaded all modules. ' %(msg.channel)
+                    # Tell the user about errors
                     if errored:
                         out += 'The following modules encountered errors: '
                         for modName in errored:
@@ -1407,6 +1411,8 @@ def modFunc(msg):
                     found = []
                     notFound = []
                     errored = []
+                    # If the user specifies moduels to reload, look for just those 
+                    # specific modules and reload them. 
                     for modName in msg.cmd[2:]: 
                         
                         if modName in library_dict:
@@ -1423,9 +1429,12 @@ def modFunc(msg):
                                 reportErr(sys.exc_info())
                                 errored.append(modName)
 
+                        # If the module could not be found, keep track of that. 
                         else:
                             notFound.append(modName)
                     
+                    # Tell the user which were successful, which were not found, 
+                    # and which encountered errors. 
                     out = 'PRIVMSG %s :' %msg.channel
                     if found:
                         out += 'Successfully reloaded: '
@@ -1451,12 +1460,15 @@ def modFunc(msg):
 
         # Rescan essentially redoes the original module scanning process
         # Note that this doesn't necessarily reload a module. 
+        # If you add or remove a module, you will need to rescan. 
+        # If you change a module, you will need to reload. 
         if msg.cmd[1] == 'rescan':
             if hasPriv(msg.nick, 'modules', 20):
                 showdbg('Rescan requested')
+                # Clear out old registries
                 funcregistry = {}
                 listenerregistry = {}
-                helpregistry = {}    
+                helpregistry = {}
                 library_list = []
                 library_dict = {}
                 for file in os.listdir(os.path.abspath("modules")):
@@ -1469,6 +1481,7 @@ def modFunc(msg):
                             r = registryFuncs()
                             getattr(module, 'register')(r)
                 showdbg('Rescan complete')
+                # Success (hopefully)
                 out = 'PRIVMSG %s :Rescanned' %(msg.channel) 
             else: 
                 out = 'PRIVMSG %s :%s' %(msg.channel, config.privrejectgeneric)
@@ -1476,6 +1489,7 @@ def modFunc(msg):
         if msg.cmd[1] == 'show':
             if not(hasPriv(msg.nick, 'showmods', 3)):
                 return(config.privrejectgeneric)
+            # If no criteria specified, print enabled/active modules. 
             if len(msg.cmd) == 2:
                 out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
                 for item in library_dict:
@@ -1485,6 +1499,7 @@ def modFunc(msg):
             
             if len(msg.cmd) == 3:
 
+                # Request to see disabled addons
                 if (msg.cmd[2] == 'disabled'):
                     out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
                     for item in library_dict:
@@ -1492,12 +1507,14 @@ def modFunc(msg):
                             out += str(item) + ', '
                     out = out[:-2]
 
+                # Request to see all mods, regardless of status
                 if (msg.cmd[2] == 'allmods'):
                     out = 'PRIVMSG %s :Currently active modules: ' %(msg.channel)
                     for item in library_dict:
                         out += str(item) + ', '
                     out = out[:-2]    
 
+                # See functions, by the name that the user actually uses to call them. 
                 if (msg.cmd[2] == 'functions'):
                     out = 'PRIVMSG %s :Currently active (non builtin) commands: ' %(msg.channel)
                     for item in list(funcregistry):
@@ -1505,6 +1522,7 @@ def modFunc(msg):
                         out += str(item)+', '
                     out = out[:-2]
                 
+                # See listeners, including the type of event it listens for
                 if (msg.cmd[2] == 'listeners'):
                     out='PRIVMSG %s :Currently active (non builtin) listeners: ' %(msg.channel)
                     for evtype in list(listenerregistry):
@@ -1515,6 +1533,7 @@ def modFunc(msg):
                             out += '%s (%s), ' %(fstr, evtype)
                     out = out[:-2]
 
+                # See custom help texts
                 if (msg.cmd[2] == 'help'):
                     out = 'PRIVMSG %s :Currently active (non builtin) help: ' %(msg.channel)
                     for item in list(helpregistry):
@@ -1782,7 +1801,7 @@ class cmdMsg:
 
 # This is the big one. This is what gets passed to listeners. 
 # Here, the constructor actually does stuff. 
-# To-do: NICK events
+# TODO: NICK events, and don't use the word 'type'
 class lineEvent:
     def __init__(self, line, conn):
         self.line = line.rstrip()
@@ -1863,6 +1882,8 @@ class lineEvent:
         if not(self.type):
             self.type = self.linesplit[1]
 
+# Given a nick, an explicit auth name, their level, and their permissions, 
+# construct an aUser object for them. 
 class aUser:
     def __init__(self, nick, authName, level, perms = []):
         self.nick = nick
@@ -1890,6 +1911,8 @@ class aUser:
         self.level = newLevel
     
 
+# Implicit auth version of aUser. Doesn't take an authName
+# since authName and nick will always be the same for implicit auth. 
 class asUser:
     def __init__(self, nick, level, perms):
         self.nick = nick
@@ -1913,6 +1936,7 @@ class asUser:
         self.level = newLevel    
 
 
+# Entry in the auth list. Just used for simple lookups of auth data from the files. 
 class uEntry:
     def __init__(self, authName, level, perms = []):
         self.authName = authName
@@ -1954,12 +1978,16 @@ def showdbg(toshow):
             outstr = '(%s)* %s' %(conn.host, line.rstrip()) 
             logdata(outstr)
 
+# Show and log an error message. 
+# This prefixes the line with ! after the server part. 
 def showErr(toshow):
     for line in toshow.splitlines():
         if line:
             outstr = '(%s)! %s' %(conn.host, line.rstrip()) 
             logdata(outstr)
 
+# Report an error to the error collector, and
+# also print it out line by line using showErr()
 def reportErr(err):
     formatted = traceback.format_exception(err[0], err[1], err[2])
     for l in formatted:
@@ -1967,16 +1995,14 @@ def reportErr(err):
     builtins.errors.append(err)
     
 
-# senddata: Send data to the server, output it to the console, and log it
-# senddata(string): uses the specified string, handling multiple lines properly
-# senddata(string, alt): displays/logs a different string, useful for hiding passwords
-#     Note that this usage is *not* compatible with multi-line input
+# Senddata function here for legacy purposes. 
+# You should always be doing conn.send now, or one of the other
+# conn.* methods. 
 def senddata(tosend, alt = False):
-    
     conn.send(tosend, alt)
 
 # logdata(string): Puts the string in the log file, along with a timestamp
-# Seperates multi-line input automatically
+# Prints the data to console as well. 
 
 def logdata(data):
     print(data)
