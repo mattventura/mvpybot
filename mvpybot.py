@@ -13,10 +13,10 @@ global NICK
 
 if len(sys.argv) >= 2:
 
-    conn = options.connections[int(sys.argv[1])]
+	conn = options.connections[int(sys.argv[1])]
 else:
-    conn = options.connections[0]
-    
+	conn = options.connections[0]
+	
 
 
 host = conn.host
@@ -42,23 +42,23 @@ import newbot
 connInst = conn
 
 def mainloop():
-    while True:
+	while True:
 
 
-        botstatus = newbot.botmain(connInst)
-        # Die
-        if botstatus == 0:
-            return 0
-        # Restart
-        if botstatus == 1:
-            initconn = 0
-        # Error
-        if botstatus == 255:
-            return 1
-        # Reload
-        if botstatus == 2:
-            initconn = 0
-            reload(newbot)
+		botstatus = newbot.botmain(connInst)
+		# Die
+		if botstatus == 0:
+			return 0
+		# Restart
+		if botstatus == 1:
+			initconn = 0
+		# Error
+		if botstatus == 255:
+			return 1
+		# Reload
+		if botstatus == 2:
+			initconn = 0
+			reload(newbot)
 
 
 
