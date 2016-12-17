@@ -5,3 +5,4 @@ ausers
 config.py
 *.swp
 log.*
+*.py~
