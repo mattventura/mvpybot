@@ -92,6 +92,7 @@ class Bot(object):
 		
 		# Initialize authlist
 		self.authlist = []
+		self.chanMap = {}
 
 		# This is where we load plugins
 		# The general plugin system is this:
@@ -195,6 +196,9 @@ class Bot(object):
 		else:
 			self.conn.initialize()
 
+		for channel in self.conn.initChans:
+			self.JoinChannel(channel)
+			
 		# For if we reload, this tries to reload the old auth list
 		def loadauthlist():
 			return builtins.authlist
@@ -296,18 +300,25 @@ class Bot(object):
 					self.ErrorAndStop('Received error from server', 255)
 
 				# If a user leaves the server, remove them from the auth list
-				if (e.etype == 'quit'):
+				elif (e.etype == 'quit'):
 					for i in self.authlist:
 						if i.nick == e.nick:
 							self.showdbg('Removing nick %s from authlist due to quit' %(e.nick))
 							self.authlist.remove(i)
 
 				# If a user changes their nick, update the auth list accordingly
-				if (e.etype == 'nick'):
+				elif (e.etype == 'nick'):
 					for i in authlist:
 						if i.nick == e.nick:
 							self.showdbg('Upddating nick %s in authlist to %s' %(e.nick, e.newNick))
 							i.nick = e.newNick
+					self.processNick(e)
+
+				elif (e.etype == 'join'):
+					self.processJoin(e)
+
+				elif (e.etype == 'part'):
+					self.processPart(e)
 
 				self.runListeners(e)
 
@@ -445,7 +456,7 @@ class Bot(object):
 			# Report errors that occur when running a built-in function
 			except:
 				self.reportErr(sys.exc_info())
-				out = 'An error has occured in an internal function'
+				out = config.intErrorMsg
 			
 			# Functions can return True if they wish to indicate that they were successful
 			# but do not want to actually send anything to the server, or they have sent
@@ -477,18 +488,20 @@ class Bot(object):
 					target = self.funcregistry[run]
 					l = target[0]
 					# Pass all this stuff in via our msgObj object
-					try: 
+					try:
 						out = target[1](msgObj)
+						if out is None:
+							self.showErr('Command returned None. This is most likely a bug in that command.')
+							return {}
 						# Something can return True to silenty proceed
 						if out is True:
 							return {}
 						if (out.split(' ')[0] != 'PRIVMSG'):
 							out = 'PRIVMSG %s :%s\n' %(channel, out)
 					except:
-						raise
 						# If an error occurs, record it and tell the user something happened. 
 						self.reportErr(sys.exc_info())
-						out = 'PRIVMSG %s :An error has occured in a module' %channel
+						out = 'PRIVMSG %s :%s' % (channel, config.modErrorMsg)
 						
 				else: 
 					found = 0
@@ -1277,6 +1290,8 @@ class Bot(object):
 	# Output some debugging info to console/log
 	# Prefixes it with server name and a *
 	def showdbg(self, toshow):
+		if not(isinstance(toshow, str)):
+			toshow = str(toshow)
 		for line in toshow.splitlines():
 			if line:
 				outstr = '(%s)* %s' %(self.conn.host, line.rstrip()) 
@@ -1285,6 +1300,8 @@ class Bot(object):
 	# Show and log an error message. 
 	# This prefixes the line with ! after the server part. 
 	def showErr(self, toshow):
+		if not(isinstance(toshow, str)):
+			toshow = str(toshow)
 		for line in toshow.splitlines():
 			if line:
 				outstr = '(%s)! %s' %(self.conn.host, line.rstrip()) 
@@ -1343,3 +1360,67 @@ class Bot(object):
 		self.reportErr(sys.exc_info())
 		self.BotStop(text, retval)
 
+
+	def JoinChannel(self, channelName):
+		self.conn.joinChannel(channelName)
+		self.chanMap[channelName] = ChannelMapEntry(channelName)
+
+
+	def PartChannel(self, channelName):
+		self.conn.partChannel(channelName)
+		del self.chanMap[channelName]
+
+
+	def processJoin(self, event):
+		try:
+			self.showdbg('Adding user %s to channel %s' % (event.nick, event.channel))
+			self.chanMap[event.channel].addMember(event.nick)
+		except Exception as e:
+			self.reportErr(sys.exc_info())
+
+
+	def processPart(self, event):
+		try:
+			self.chanMap[event.channel].removeMemberIfExists(event.nick)
+		except Exception as e:
+			self.reportErr(sys.exc_info())
+
+
+	namesCache = {}
+
+	def process353(self, event):
+		channel = event.linesplit[4]
+		if channel not in self.namesCache:
+			self.namesCache[channel] = []
+		names = event.linesplit[5:]
+		if not names:
+			return
+		# First name will have a leading colon, remove it
+		if names[0] and names[0][0] == ':':
+			names[0] = names[0][1:]
+
+		self.namesCache[channel] += names
+
+
+	def process366(self, event):
+		channel = event.linesplit[3]
+		allNames = namesCache.pop(channel)
+		self.chanMap[channel].refresh(allNames)
+
+	
+
+
+	def processNick(self, event):
+		old = event.nick
+		new = event.newNick
+		for channelEntry in self.chanMap.values():
+			channelEntry.renameIfExists(old, new)
+
+	
+	def getUsersInChannel(self, channel):
+		userEntries = self.chanMap[channel].userMap.values()
+		return map(str, userEntries)
+
+
+	def getChannels(self):
+		return self.chanMap.keys()

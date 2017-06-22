@@ -35,7 +35,6 @@ class periodic:
 		self.conn = bot.conn
 		self.socket = bot.conn.socket
 		self.sendata = bot.conn.send
-		self.numlevel = bot.numlevel
 		self.getlevel = bot.getlevel
 		self.hasPriv = bot.hasPriv
 
@@ -69,6 +68,7 @@ class cmdMsg:
 class lineEvent:
 	def __init__(self, bot, line):
 		self.line = line.rstrip()
+		self.bot = bot
 		self.conninfo = bot.conn
 		self.conn = bot.conn
 		self.senddata = bot.conn.send
@@ -88,11 +88,11 @@ class lineEvent:
 			self.etype = 'ping'
 			self.ping = self.line.split()
 			self.target = self.ping[1]
-			return(None)
+			return
 		
 		if self.linesplit[0] == 'ERROR':
 			self.etype = 'error'
-			return(None)
+			return
 		
 		if self.linesplit[1] == 'PART':
 			self.etype = 'part' 
@@ -133,6 +133,11 @@ class lineEvent:
 			self.message = ' '.join(self.linesplit[3:])
 			if (self.message[0] == ':'):
 				self.message = self.message[1:]
+
+		"""
+		elif self.linesplit[1] in ('353'):
+			self.
+			"""
 
 
 		if self.userString:
@@ -224,3 +229,56 @@ class BotStopEvent(Exception):
 	def __init__(self, text, retval):
 		super(BotStopEvent, self).__init__(text)
 		self.retval = retval
+
+
+class ChannelMapUser:
+	__slot__ = ['nick']
+	def __init__(self, name):
+		self.nick = name
+
+	def rename(self, newName):
+		self.nick = newName
+
+	def __str__(self):
+		return self.nick
+
+
+class ChannelMapEntry:
+	__slots__ = ['chanName', 'userMap']
+	def __init__(self, name):
+		self.chanName = name
+		self.userMap = {}
+
+	def _addMemberEntry(self, entry):
+		self.userMap[entry.nick] = entry
+
+	def addMember(self, nick):
+		self._addMemberEntry(ChannelMapUser(nick))
+
+	def removeMember(self, nick):
+		del self.userMap[nick]
+
+	def removeMemberIfExists(self, nick):
+		try:
+			self.removeMember(self, nick)
+		except:
+			pass
+
+	def renameMember(self, old, new):
+		entry = self.userMap.pop(old)
+		entry.rename(new)
+		self._addMemberEntry(entry)
+
+	def renameIfExists(self, old, new):
+		try:
+			self.renameMember(old, new)
+		except KeyError:
+			pass
+
+	def refresh(self, nameList):
+		oldSet = set(self.userMap.keys())
+		newSet = set(nameList)
+		toRemove = oldSet - newSet
+		toAdd = newSet - oldSet
+		map(this.removeMember, toRemove)
+		map(this.addMember, toAdd)

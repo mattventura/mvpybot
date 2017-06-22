@@ -1,5 +1,6 @@
 import sys
 import config
+import os
 # Account management. 
 # Supports querying and modifying levels and passwords, as well as adding
 # new users. 
@@ -373,7 +374,7 @@ def modFunc(self, msg):
 		# If you change a module, you will need to reload. 
 		elif msg.cmd[1] == 'rescan':
 			if self.hasPriv(msg.nick, 'modules', 20):
-				showdbg('Rescan requested')
+				self.showdbg('Rescan requested')
 				# Clear out old registries
 				self.funcregistry = {}
 				self.listenerregistry = {}
@@ -384,8 +385,8 @@ def modFunc(self, msg):
 					pname, fileext = os.path.splitext(f)
 					if fileext == '.py':
 						module = __import__(pname)
-						library_list.append(module)
-						library_dict[pname] = module
+						self.library_list.append(module)
+						self.library_dict[pname] = module
 						if hasattr(module,'register') and getattr(module, 'enabled', 1):
 							r = self
 							getattr(module, 'register')(r)
