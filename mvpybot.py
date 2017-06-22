@@ -45,19 +45,23 @@ def mainloop():
 	while True:
 
 
-		botstatus = newbot.botmain(connInst)
+		bot = newbot.Bot(connInst)
+		botstatus = bot.BotMain(conn)
 		# Die
 		if botstatus == 0:
 			return 0
 		# Restart
 		if botstatus == 1:
-			initconn = 0
+			pass
 		# Error
 		if botstatus == 255:
 			return 1
 		# Reload
 		if botstatus == 2:
-			initconn = 0
+			import builtinfuncs
+			reload(builtinfuncs)
+			import classes
+			reload(classes)
 			reload(newbot)
 
 

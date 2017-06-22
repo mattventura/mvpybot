@@ -18,12 +18,14 @@ class ircSrv:
 		self.port = port
 		self.csp = csPass
 		self.initChans = chans
+		self.chans = []
 		self.userString = 'USER ' + user + ' ' + str(mode) + ' * : ' + rn
 		self.userAuth = True
 		self.throttle = False
 		self.isConnected = False
 		self.lastMsgOut = 0
-		self.fullyDone = False
+
+	fullyDone = False
 
 	# Not used yet?
 	logfunc = None
@@ -120,7 +122,7 @@ class ircSrv:
 		self.connSocket()
 		self.handShake()
 		self.waitForHsFinish()
-		self.joinChans()
+		#self.joinChans()
 		self.fullyDone = True
 
 	def disconnect(self):
@@ -244,9 +246,11 @@ class ircSrv:
 		else:
 			self.send('MODE %s %s' %(channel, mode))
 
-	def setUserMode(nick, mode):
+	def setUserMode(self, nick, mode):
 		self.send('MODE %s %s' %(nick, mode))
 
+	def requestUserList(self, channel):
+		self.send('NAMES %s' % channel)
 
 
 
@@ -259,17 +263,20 @@ class ircSrv:
 # Use this if the bot is not modded, or twitch will
 # eat messages if they are sent too fast in succession. 
 class twIrc(ircSrv):
+
+	throttle = 2.5
 	
-	def __init__(self, chans, authkey):
+	def __init__(self, nick, chans, authkey):
 		self.host = 'irc.twitch.tv'
 		self.port = 6667
 		self.csp = False
-		self.chans = chans
+		self.chans = []
+		self.initChans = chans
 		self.userString = 'USER ' + NICK + ' 8 * : ' + NICK
 		self.userAuth = False
 		self.password = authkey
-		self.throttle = 2.5
 		self.isConnected = False
+		self.nick = nick
 
 	def kickNick(self, channel, nick, message = False):
 		self.privmsg(channel, '.timeout %s 1')
@@ -282,18 +289,20 @@ class twIrc(ircSrv):
 	def unBanNick(self, channel, nick):
 		self.privmsg(channel, '.unban %s')
 
-# twitch.tv chat with no throttling built in
+	def joinChans(self):
+		self.send('CAP REQ :twitch.tv/membership')
+		self.send('CAP REQ :twitch.tv/commands')
+		super(twIrc, self).joinChans()
+
+	def initialize(self):
+		super(twIrc, self).initialize()
+		self.send('CAP REQ :twitch.tv/membership')
+		self.send('CAP REQ :twitch.tv/commands')
+		time.sleep(3)
+
+# twitch.tv chat with very little throttling built in
 # Use this if the bot is modded, as moderators
 # can send messages in quick succession. 
 class twIrcNt(twIrc):
 	
-	def __init__(self, chans, authkey):
-		self.host = 'irc.twitch.tv'
-		self.port = 6667
-		self.csp = False
-		self.chans = chans
-		self.userString = 'USER ' + NICK + ' 8 * : ' + NICK
-		self.userAuth = False
-		self.password = authkey
-		self.throttle = 0.5
-		self.isConnected = False
+	throttle = 0.5

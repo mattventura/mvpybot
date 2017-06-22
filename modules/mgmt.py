@@ -6,6 +6,7 @@ import config
 def register(r):
 	r.registerfunction('part', partFunc)
 	r.registerfunction('join', joinFunc)
+	r.registerfunction('dcd', dcdFunc)
 
 
 def partFunc(msg):
@@ -25,3 +26,9 @@ def joinFunc(msg):
 		return('%s: %s' %(msg.nick, config.privrejectadmin))
 		
 
+def dcdFunc(e):
+	cm = e.bot.chanMap
+	for entry in cm.values():
+		out = 'Members of %s: %s' % (entry.chanName, ', '.join(map(str, entry.userMap.values())))
+		e.showdbg(out)
+	return 'Dumped'
