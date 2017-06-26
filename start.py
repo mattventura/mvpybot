@@ -1,8 +1,11 @@
 #!/usr/bin/python3
 
+
+import time
+
+
 import options
 import os
-import time
 
 from subprocess import PIPE,Popen
 
@@ -12,7 +15,7 @@ for servernum in range(len(options.connections)):
 	proclist.append([Popen(['./mvpybot.py',str(servernum)]),servernum])
 
 try:
-	while 1:
+	while True:
 		pass
 		time.sleep(1);
 		for n in range(0,len(proclist)):

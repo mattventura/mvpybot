@@ -32,7 +32,8 @@ import os
 import time
 import random
 import inspect
-import builtins
+#import builtins
+import sharedstate
 import traceback
 from imp import reload
 import re
@@ -70,6 +71,8 @@ sys.path.append("modules")
 class Bot(object):
 
 
+
+
 	def BotMain(self, botConn):
 		try:
 			self.BotInit()
@@ -82,6 +85,13 @@ class Bot(object):
 
 	def __init__(self, botConn):
 		self.conn = botConn
+		self.builtinFuncMap = {'test' : self.testFunc, 
+			'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
+			'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
+			'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
+			'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
+			'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
+		}
 
 	def BotInit(self):
 		# Announce that we are logging
@@ -143,7 +153,7 @@ class Bot(object):
 				self.library_dict[pname] = module
 				if hasattr(module, 'register') and getattr(module, 'enabled', 1):
 					regs = self
-					builtins.lastMod = module
+					#builtins.lastMod = module
 					try:
 						getattr(module, 'register')(regs)
 					except:
@@ -175,9 +185,6 @@ class Bot(object):
 		self.host = self.conn.host
 		self.port = self.conn.port
 
-		# More legacy stuff
-		builtins.host = conn.host
-
 		# Expose our logger function to the connection object
 		# so that it can properly log/output data. 
 		self.conn.setLogger(self.logdata)
@@ -201,7 +208,7 @@ class Bot(object):
 			
 		# For if we reload, this tries to reload the old auth list
 		def loadauthlist():
-			return builtins.authlist
+			return sharedstate.authlist
 
 		# We only do this if we're using explicit authentication
 		if self.conn.userAuth:
@@ -259,7 +266,7 @@ class Bot(object):
 					# Turn our line into a lineEvent object
 					e = lineEvent(self, line)
 				except:
-					showdbg('Failed basic line parsing! Line: ' + line)
+					self.showdbg('Failed basic line parsing! Line: ' + line)
 					self.reportErr(sys.exc_info())
 					continue
 					
@@ -284,7 +291,7 @@ class Bot(object):
 
 							if lstat['action'] == "reload":
 								if self.conn.userAuth:
-									builtins.authlist = self.authlist
+									sharedstate.authlist = self.authlist
 								self.logdata(time.strftime('---- [ Session closed at %y-%m-%d %H:%M:%S ] ---- (Reason: reload requested)'))
 								raise BotStopEvent('Reload requested', 2)
 
@@ -365,10 +372,9 @@ class Bot(object):
 
 		run = ''
 		out = ''
-		length = len(msg)
 
 		# Quick fix
-		if not(length):
+		if not msg:
 			msg = '(null)'
 
 		# There are three ways to call a command:
@@ -399,16 +405,7 @@ class Bot(object):
 			# We construct this object to pass to functions that correspond to actual chat functions
 			msgObj = cmdMsg(self, channel, sender, cmd, run, isprivate)
 
-			# Builtin functions
-			# Some of these can be externalized, others cannot since some of the auth system stuff
-			# never gets exposed to them. 
-			funcs = {'test' : self.testFunc, 
-				'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
-				'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
-				'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
-				'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
-				'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
-			}
+			funcs = self.builtinFuncMap
 
 			try: 
 				# If the command is in our built-ins, run it
@@ -427,7 +424,7 @@ class Bot(object):
 				# restarted. 
 				# Yes, this means that unlike most programs, 'reload' actually does more than 'restart'. 
 
-				# These reside here because it would get messy to put them elsewhere. 
+				# These reside here because it would get messy to put them elsewhere.
 				if (run == 'restart'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Restart requested')
@@ -452,7 +449,6 @@ class Bot(object):
 					else:
 						out = config.privrejectadmin
 
-			
 			# Report errors that occur when running a built-in function
 			except:
 				self.reportErr(sys.exc_info())
@@ -463,7 +459,7 @@ class Bot(object):
 			# things to the server through conn.* methods. 
 			nodata = False
 			try:
-				if out == True:
+				if out is True:
 					nodata = True
 			except:
 				pass
@@ -546,12 +542,14 @@ class Bot(object):
 	# Tries to guess whether 'a' or 'an' should be used with a word
 	@staticmethod
 	def getArticle(word):
-		if word.lower() == 'user':
-			return('a')
+		if not word:
+			return ''
+		elif word.lower() == 'user':
+			return 'a'
 		elif word[0] in ('a', 'e', 'i', 'o', 'u'):
-			return('an')
+			return 'an'
 		else:
-			return('a')
+			return 'a'
 
 	# Tries to find a privilege level in config.py
 	# Failing that, it will return the default argument. 
@@ -877,7 +875,7 @@ class Bot(object):
 			raise(Exception('Simple auth is enabled, so there are no passwords to change'))
 
 		else:
-			showdbg('Attempting to change password for %s' %user)
+			self.showdbg('Attempting to change password for %s' %user)
 
 			if conn.userAuth:
 				authFile = 'users'
@@ -893,7 +891,7 @@ class Bot(object):
 					lineSplit = fLine.split(' ')
 					if user == lineSplit[0]:
 						outData += '%s HASH:%s %s' %(lineSplit[0], sha(newPass.encode()).hexdigest(), ' '.join(lineSplit[2:]))
-						showdbg('Found entry, modifying...')
+						self.showdbg('Found entry, modifying...')
 						found = True
 
 					else:
@@ -904,18 +902,18 @@ class Bot(object):
 					f.write(outData)
 					f.truncate()
 				
-				showdbg('Changed password for %s' %user)
+				self.showdbg('Changed password for %s' %user)
 				return
 
 			else:
 				
-				showdbg('Could not find user %s' %user)
+				self.showdbg('Could not find user %s' %user)
 				raise(UserNotFound(user))
 					
 	# Function to change a user's level
 	def chgUserLvl(self, user, newLevel):
 		
-		showdbg('Attempting to change level for %s' %user)
+		self.showdbg('Attempting to change level for %s' %user)
 
 		if conn.userAuth:
 			authFile = 'users'
@@ -935,7 +933,7 @@ class Bot(object):
 						outData += '%s %s %s' %(' '.join(lineSplit[0:2]), str(newLevel), ' '.join(lineSplit[3:]))
 					else:
 						outData += '%s %s %s' %(lineSplit[0], str(newLevel), ' '.join(lineSplit[2:]))
-					showdbg('Found entry, modifying...')
+					self.showdbg('Found entry, modifying...')
 					found = True
 
 				else:
@@ -946,12 +944,12 @@ class Bot(object):
 				f.write(outData)
 				f.truncate()
 			
-			showdbg('Changed level for %s' %user)
+			self.showdbg('Changed level for %s' %user)
 			return
 
 		else:
 			
-			showdbg('Could not find user %s' %user)
+			self.showdbg('Could not find user %s' %user)
 			raise(UserNotFound(user))
 				
 			
@@ -959,7 +957,7 @@ class Bot(object):
 	# This function requires ALL of the privileges you want the user to have after the change. 
 	def chgUserPrivs(self, user, grant, deny):
 		
-		showdbg('Attempting to change privs for %s' %user)
+		self.showdbg('Attempting to change privs for %s' %user)
 		if conn.userAuth:
 			authFile = 'users'
 		else:
@@ -979,7 +977,7 @@ class Bot(object):
 						outData += '%s %s\n' %(' '.join(lineSplit[0:3]), newPrivs)
 					else:
 						outData += '%s %s\n' %(' '.join(lineSplit[0:2]), newPrivs)
-					showdbg('Found entry, modifying...')
+					self.showdbg('Found entry, modifying...')
 					found = True
 
 				else:
@@ -990,11 +988,11 @@ class Bot(object):
 				f.write(outData)
 				f.truncate()
 			
-			showdbg('Changed privs for %s' %user)
+			self.showdbg('Changed privs for %s' %user)
 			return
 
 		else:
-			showdbg('Could not find user %s' %user)
+			self.showdbg('Could not find user %s' %user)
 			raise(UserNotFound(user))
 
 	# Function to change your own pass
@@ -1057,16 +1055,16 @@ class Bot(object):
 			return(config.privrejectadmin)
 
 		else:
-			showdbg('Dumping auth list. Format is nick, authname, level')
+			self.showdbg('Dumping auth list. Format is nick, authname, level')
 			for i in authlist:
-				showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
+				self.showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
 				return('Dumped auth list to console')
 
 	# Generate an error. 
 	def errTest(self, msg):
 
 		if hasPriv(msg.nick, 'errors', 20):
-			showdbg('Error test requested')
+			self.showdbg('Error test requested')
 			msg.conn.send('PRIVMSG %s :Error requested. Check the console.\n' %msg.channel)
 			time.sleep(1)
 			raise(Exception('User-requested error'))
@@ -1099,15 +1097,15 @@ class Bot(object):
 
 	# The error system
 	def errFunc(self, msg):
-		if self.getlevel(msg.nick) < getPrivReq('errors', 20):
+		if self.getlevel(msg.nick) < self.getPrivReq('errors', 20):
 			return config.privrejectadmin
 
 		elif len(msg.cmd) == 1:
-			return('There are currently %s stored errors' %int(len(builtins.errors)))
+			return('There are currently %s stored errors' %int(len(sharedstate.errors)))
 
 		elif msg.cmd[1] == 'last':
-			if len(builtins.errors) > 0:
-				errString = fmtErr(builtins.errors[-1])
+			if len(sharedstate.errors) > 0:
+				errString = fmtErr(sharedstate.errors[-1])
 				errLines = errString.splitlines()
 				for el in errLines:
 					if config.privacy:
@@ -1119,10 +1117,10 @@ class Bot(object):
 				return('There are no errors to report')
 
 		elif msg.cmd[1] == 'list':
-			if len(builtins.errors) > 0:
+			if len(sharedstate.errors) > 0:
 				outStr = 'Stored errors: '
-				for i in range(len(builtins.errors)):
-					errName = builtins.errors[i][0].__name__
+				for i in range(len(sharedstate.errors)):
+					errName = sharedstate.errors[i][0].__name__
 					outStr += '%s: %s, ' %(str(i), errName)
 				outStr = outStr[:-2] + '. '
 				return(outStr)
@@ -1136,11 +1134,11 @@ class Bot(object):
 				return('Syntax error. Usage: errors <errNum | last>.')
 
 			try:
-				err = builtins.errors[errNum]
+				err = sharedstate.errors[errNum]
 			except IndexError:
 				return('Error number is out of bounds')
 
-			errString = fmtErr(builtins.errors[errNum])
+			errString = fmtErr(sharedstate.errors[errNum])
 			errLines = errString.splitlines()
 			for el in errLines:
 				msg.conn.send('PRIVMSG %s :%s\n' %(msg.channel, el))
@@ -1159,7 +1157,7 @@ class Bot(object):
 		if not(hasPriv(msg.nick, 'config', 20)):
 			return(config.privrejectadmin)
 		else:
-			showdbg('Reloading options...')
+			self.showdbg('Reloading options...')
 			reload(options)
 			return('Reloaded options.py')
 
@@ -1169,7 +1167,7 @@ class Bot(object):
 		if not(hasPriv(msg.nick, 'config', 20)):
 			return(config.privrejectadmin)
 		else:
-			showdbg('Reloading config...')
+			self.showdbg('Reloading config...')
 			reload(config)
 			return('Reloaded config.py')
 		
@@ -1178,7 +1176,7 @@ class Bot(object):
 	def reloadByName(self, modName):
 		
 		module = self.library_dict[modName]
-		builtins.lastMod = module
+		#sharedstate.lastMod = module
 
 		regs = self
 
@@ -1220,19 +1218,22 @@ class Bot(object):
 
 	# Register a new function
 	def registerfunction(self, name, function):
-		module = builtins.lastMod
+		#module = sharedstate.lastMod
+		module = function.__module__
 		self.funcregistry[name] = [module, function]
 
 	# Add a new listener
 	def addlistener(self, event, function):
-		module = builtins.lastMod
+		#module = sharedstate.lastMod
+		module = function.__module__
 		if event not in self.listenerregistry:
 			self.listenerregistry[event] = []
 		self.listenerregistry[event].append([module, function])
 
 	# Add a new help page
 	def addhelp(self, name, function):
-		module = builtins.lastMod
+		#module = sharedstate.lastMod
+		module = function.__module__
 		self.helpregistry[name] = [module, function]
 
 	# Function to return the auth object of a nick
@@ -1313,7 +1314,7 @@ class Bot(object):
 		formatted = traceback.format_exception(err[0], err[1], err[2])
 		for l in formatted:
 			self.showErr(l)
-		builtins.errors.append(err)
+		sharedstate.errors.append(err)
 		
 
 	# Senddata function here for legacy purposes. 
