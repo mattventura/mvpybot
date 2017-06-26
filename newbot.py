@@ -70,6 +70,8 @@ sys.path.append("modules")
 class Bot(object):
 
 
+
+
 	def BotMain(self, botConn):
 		try:
 			self.BotInit()
@@ -82,6 +84,13 @@ class Bot(object):
 
 	def __init__(self, botConn):
 		self.conn = botConn
+		builtinFuncMap = {'test' : self.testFunc, 
+			'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
+			'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
+			'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
+			'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
+			'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
+		}
 
 	def BotInit(self):
 		# Announce that we are logging
@@ -365,10 +374,9 @@ class Bot(object):
 
 		run = ''
 		out = ''
-		length = len(msg)
 
 		# Quick fix
-		if not(length):
+		if not msg:
 			msg = '(null)'
 
 		# There are three ways to call a command:
@@ -402,13 +410,14 @@ class Bot(object):
 			# Builtin functions
 			# Some of these can be externalized, others cannot since some of the auth system stuff
 			# never gets exposed to them. 
-			funcs = {'test' : self.testFunc, 
-				'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
-				'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
-				'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
-				'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
-				'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
-			}
+			#funcs = {'test' : self.testFunc, 
+				#'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
+				#'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
+				#'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
+				#'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
+				#'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
+			#}
+			funcs = self.builtinFuncMap
 
 			try: 
 				# If the command is in our built-ins, run it
@@ -463,7 +472,7 @@ class Bot(object):
 			# things to the server through conn.* methods. 
 			nodata = False
 			try:
-				if out == True:
+				if out is True:
 					nodata = True
 			except:
 				pass
@@ -546,12 +555,14 @@ class Bot(object):
 	# Tries to guess whether 'a' or 'an' should be used with a word
 	@staticmethod
 	def getArticle(word):
-		if word.lower() == 'user':
-			return('a')
+		if not word:
+			return ''
+		elif word.lower() == 'user':
+			return 'a'
 		elif word[0] in ('a', 'e', 'i', 'o', 'u'):
-			return('an')
+			return 'an'
 		else:
-			return('a')
+			return 'a'
 
 	# Tries to find a privilege level in config.py
 	# Failing that, it will return the default argument. 
