@@ -15,8 +15,8 @@ lastFlushTime = time.time()
 lastAccumTime = time.time()
 
 
-accumInterval = 10
-balancePerInterval = 2
+accumInterval = 30
+balancePerInterval = 1
 
 
 balanceCache = {}
@@ -60,7 +60,7 @@ def timeSinceAcc():
 
 
 def balance(e):
-	return "You have %s %s" % (getBalanceForUser(e.nick), currencyName)
+	return "%s has %s %s" % (e.nick, getBalanceForUser(e.nick), currencyName)
 
 
 def gamble(e):
@@ -72,31 +72,35 @@ def gamble(e):
 	except:
 		return 'How to gamble: !gamble <amount>'
 
+	if amount <= 0:
+		return 'How to gamble: !gamble <amount>'
+		
+
 	user = e.nick
 
 	curBal = getBalanceForUser(user)
 	if amount > curBal:
-		return 'You only have %s %s, you can\'t gamble that many!' % (curBal, currencyName)
+		return '%s: You only have %s %s, you can\'t gamble that many!' % (user, curBal, currencyName)
 
 	roll = random.randint(0, 100)
 
 	if roll < 60:
 		adjustUserBalance(user, amount * -1)
-		out = 'You rolled %s and lost %s %s. ' % (roll, amount, currencyName)
+		out = '%s rolled %s and lost %s %s. ' % (user, roll, amount, currencyName)
 
 	elif roll < 90:
 		adjustUserBalance(user, amount)
-		out = 'You rolled %s and won %s %s. ' % (roll, amount, currencyName)
+		out = '%s rolled %s and won %s %s. ' % (user, roll, amount, currencyName)
 
 	elif roll < 100:
 		winnings = amount * 2
 		adjustUserBalance(user, winnings)
-		out = 'You rolled %s and won %s %s. ' % (roll, winnings, currencyName)
+		out = '%s rolled %s and won %s %s. ' % (user, roll, winnings, currencyName)
 	
 	else:
 		winnings = amount * 5
 		adjustUserBalance(user, winnings)
-		out = 'You rolled a perfect 100 and won %s %s. ' % (winnings, currencyName)
+		out = '%s rolled a perfect 100 and won %s %s. ' % (user, winnings, currencyName)
 	
 	nbStr = 'Your new balance is %s. ' % getBalanceForUser(user)
 

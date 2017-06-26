@@ -32,7 +32,8 @@ import os
 import time
 import random
 import inspect
-import builtins
+#import builtins
+import sharedstate
 import traceback
 from imp import reload
 import re
@@ -84,7 +85,7 @@ class Bot(object):
 
 	def __init__(self, botConn):
 		self.conn = botConn
-		builtinFuncMap = {'test' : self.testFunc, 
+		self.builtinFuncMap = {'test' : self.testFunc, 
 			'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
 			'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
 			'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
@@ -152,7 +153,7 @@ class Bot(object):
 				self.library_dict[pname] = module
 				if hasattr(module, 'register') and getattr(module, 'enabled', 1):
 					regs = self
-					builtins.lastMod = module
+					#builtins.lastMod = module
 					try:
 						getattr(module, 'register')(regs)
 					except:
@@ -184,9 +185,6 @@ class Bot(object):
 		self.host = self.conn.host
 		self.port = self.conn.port
 
-		# More legacy stuff
-		builtins.host = conn.host
-
 		# Expose our logger function to the connection object
 		# so that it can properly log/output data. 
 		self.conn.setLogger(self.logdata)
@@ -210,7 +208,7 @@ class Bot(object):
 			
 		# For if we reload, this tries to reload the old auth list
 		def loadauthlist():
-			return builtins.authlist
+			return sharedstate.authlist
 
 		# We only do this if we're using explicit authentication
 		if self.conn.userAuth:
@@ -293,7 +291,7 @@ class Bot(object):
 
 							if lstat['action'] == "reload":
 								if self.conn.userAuth:
-									builtins.authlist = self.authlist
+									sharedstate.authlist = self.authlist
 								self.logdata(time.strftime('---- [ Session closed at %y-%m-%d %H:%M:%S ] ---- (Reason: reload requested)'))
 								raise BotStopEvent('Reload requested', 2)
 
@@ -1114,11 +1112,11 @@ class Bot(object):
 			return config.privrejectadmin
 
 		elif len(msg.cmd) == 1:
-			return('There are currently %s stored errors' %int(len(builtins.errors)))
+			return('There are currently %s stored errors' %int(len(sharedstate.errors)))
 
 		elif msg.cmd[1] == 'last':
-			if len(builtins.errors) > 0:
-				errString = fmtErr(builtins.errors[-1])
+			if len(sharedstate.errors) > 0:
+				errString = fmtErr(sharedstate.errors[-1])
 				errLines = errString.splitlines()
 				for el in errLines:
 					if config.privacy:
@@ -1130,10 +1128,10 @@ class Bot(object):
 				return('There are no errors to report')
 
 		elif msg.cmd[1] == 'list':
-			if len(builtins.errors) > 0:
+			if len(sharedstate.errors) > 0:
 				outStr = 'Stored errors: '
-				for i in range(len(builtins.errors)):
-					errName = builtins.errors[i][0].__name__
+				for i in range(len(sharedstate.errors)):
+					errName = sharedstate.errors[i][0].__name__
 					outStr += '%s: %s, ' %(str(i), errName)
 				outStr = outStr[:-2] + '. '
 				return(outStr)
@@ -1147,11 +1145,11 @@ class Bot(object):
 				return('Syntax error. Usage: errors <errNum | last>.')
 
 			try:
-				err = builtins.errors[errNum]
+				err = sharedstate.errors[errNum]
 			except IndexError:
 				return('Error number is out of bounds')
 
-			errString = fmtErr(builtins.errors[errNum])
+			errString = fmtErr(sharedstate.errors[errNum])
 			errLines = errString.splitlines()
 			for el in errLines:
 				msg.conn.send('PRIVMSG %s :%s\n' %(msg.channel, el))
@@ -1189,7 +1187,7 @@ class Bot(object):
 	def reloadByName(self, modName):
 		
 		module = self.library_dict[modName]
-		builtins.lastMod = module
+		#sharedstate.lastMod = module
 
 		regs = self
 
@@ -1231,19 +1229,22 @@ class Bot(object):
 
 	# Register a new function
 	def registerfunction(self, name, function):
-		module = builtins.lastMod
+		#module = sharedstate.lastMod
+		module = function.__module__
 		self.funcregistry[name] = [module, function]
 
 	# Add a new listener
 	def addlistener(self, event, function):
-		module = builtins.lastMod
+		#module = sharedstate.lastMod
+		module = function.__module__
 		if event not in self.listenerregistry:
 			self.listenerregistry[event] = []
 		self.listenerregistry[event].append([module, function])
 
 	# Add a new help page
 	def addhelp(self, name, function):
-		module = builtins.lastMod
+		#module = sharedstate.lastMod
+		module = function.__module__
 		self.helpregistry[name] = [module, function]
 
 	# Function to return the auth object of a nick
@@ -1324,7 +1325,7 @@ class Bot(object):
 		formatted = traceback.format_exception(err[0], err[1], err[2])
 		for l in formatted:
 			self.showErr(l)
-		builtins.errors.append(err)
+		sharedstate.errors.append(err)
 		
 
 	# Senddata function here for legacy purposes. 

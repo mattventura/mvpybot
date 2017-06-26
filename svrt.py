@@ -272,7 +272,7 @@ class twIrc(ircSrv):
 		self.csp = False
 		self.chans = []
 		self.initChans = chans
-		self.userString = 'USER ' + NICK + ' 8 * : ' + NICK
+		self.userString = 'USER ' + nick + ' 8 * : ' + nick
 		self.userAuth = False
 		self.password = authkey
 		self.isConnected = False
