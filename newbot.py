@@ -259,7 +259,7 @@ class Bot(object):
 					# Turn our line into a lineEvent object
 					e = lineEvent(self, line)
 				except:
-					showdbg('Failed basic line parsing! Line: ' + line)
+					self.showdbg('Failed basic line parsing! Line: ' + line)
 					self.reportErr(sys.exc_info())
 					continue
 					
@@ -877,7 +877,7 @@ class Bot(object):
 			raise(Exception('Simple auth is enabled, so there are no passwords to change'))
 
 		else:
-			showdbg('Attempting to change password for %s' %user)
+			self.showdbg('Attempting to change password for %s' %user)
 
 			if conn.userAuth:
 				authFile = 'users'
@@ -893,7 +893,7 @@ class Bot(object):
 					lineSplit = fLine.split(' ')
 					if user == lineSplit[0]:
 						outData += '%s HASH:%s %s' %(lineSplit[0], sha(newPass.encode()).hexdigest(), ' '.join(lineSplit[2:]))
-						showdbg('Found entry, modifying...')
+						self.showdbg('Found entry, modifying...')
 						found = True
 
 					else:
@@ -904,18 +904,18 @@ class Bot(object):
 					f.write(outData)
 					f.truncate()
 				
-				showdbg('Changed password for %s' %user)
+				self.showdbg('Changed password for %s' %user)
 				return
 
 			else:
 				
-				showdbg('Could not find user %s' %user)
+				self.showdbg('Could not find user %s' %user)
 				raise(UserNotFound(user))
 					
 	# Function to change a user's level
 	def chgUserLvl(self, user, newLevel):
 		
-		showdbg('Attempting to change level for %s' %user)
+		self.showdbg('Attempting to change level for %s' %user)
 
 		if conn.userAuth:
 			authFile = 'users'
@@ -935,7 +935,7 @@ class Bot(object):
 						outData += '%s %s %s' %(' '.join(lineSplit[0:2]), str(newLevel), ' '.join(lineSplit[3:]))
 					else:
 						outData += '%s %s %s' %(lineSplit[0], str(newLevel), ' '.join(lineSplit[2:]))
-					showdbg('Found entry, modifying...')
+					self.showdbg('Found entry, modifying...')
 					found = True
 
 				else:
@@ -946,12 +946,12 @@ class Bot(object):
 				f.write(outData)
 				f.truncate()
 			
-			showdbg('Changed level for %s' %user)
+			self.showdbg('Changed level for %s' %user)
 			return
 
 		else:
 			
-			showdbg('Could not find user %s' %user)
+			self.showdbg('Could not find user %s' %user)
 			raise(UserNotFound(user))
 				
 			
@@ -959,7 +959,7 @@ class Bot(object):
 	# This function requires ALL of the privileges you want the user to have after the change. 
 	def chgUserPrivs(self, user, grant, deny):
 		
-		showdbg('Attempting to change privs for %s' %user)
+		self.showdbg('Attempting to change privs for %s' %user)
 		if conn.userAuth:
 			authFile = 'users'
 		else:
@@ -979,7 +979,7 @@ class Bot(object):
 						outData += '%s %s\n' %(' '.join(lineSplit[0:3]), newPrivs)
 					else:
 						outData += '%s %s\n' %(' '.join(lineSplit[0:2]), newPrivs)
-					showdbg('Found entry, modifying...')
+					self.showdbg('Found entry, modifying...')
 					found = True
 
 				else:
@@ -990,11 +990,11 @@ class Bot(object):
 				f.write(outData)
 				f.truncate()
 			
-			showdbg('Changed privs for %s' %user)
+			self.showdbg('Changed privs for %s' %user)
 			return
 
 		else:
-			showdbg('Could not find user %s' %user)
+			self.showdbg('Could not find user %s' %user)
 			raise(UserNotFound(user))
 
 	# Function to change your own pass
@@ -1057,16 +1057,16 @@ class Bot(object):
 			return(config.privrejectadmin)
 
 		else:
-			showdbg('Dumping auth list. Format is nick, authname, level')
+			self.showdbg('Dumping auth list. Format is nick, authname, level')
 			for i in authlist:
-				showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
+				self.showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
 				return('Dumped auth list to console')
 
 	# Generate an error. 
 	def errTest(self, msg):
 
 		if hasPriv(msg.nick, 'errors', 20):
-			showdbg('Error test requested')
+			self.showdbg('Error test requested')
 			msg.conn.send('PRIVMSG %s :Error requested. Check the console.\n' %msg.channel)
 			time.sleep(1)
 			raise(Exception('User-requested error'))
@@ -1099,7 +1099,7 @@ class Bot(object):
 
 	# The error system
 	def errFunc(self, msg):
-		if self.getlevel(msg.nick) < getPrivReq('errors', 20):
+		if self.getlevel(msg.nick) < self.getPrivReq('errors', 20):
 			return config.privrejectadmin
 
 		elif len(msg.cmd) == 1:
@@ -1159,7 +1159,7 @@ class Bot(object):
 		if not(hasPriv(msg.nick, 'config', 20)):
 			return(config.privrejectadmin)
 		else:
-			showdbg('Reloading options...')
+			self.showdbg('Reloading options...')
 			reload(options)
 			return('Reloaded options.py')
 
@@ -1169,7 +1169,7 @@ class Bot(object):
 		if not(hasPriv(msg.nick, 'config', 20)):
 			return(config.privrejectadmin)
 		else:
-			showdbg('Reloading config...')
+			self.showdbg('Reloading config...')
 			reload(config)
 			return('Reloaded config.py')
 		
