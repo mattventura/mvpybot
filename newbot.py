@@ -405,16 +405,6 @@ class Bot(object):
 			# We construct this object to pass to functions that correspond to actual chat functions
 			msgObj = cmdMsg(self, channel, sender, cmd, run, isprivate)
 
-			# Builtin functions
-			# Some of these can be externalized, others cannot since some of the auth system stuff
-			# never gets exposed to them. 
-			#funcs = {'test' : self.testFunc, 
-				#'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
-				#'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
-				#'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
-				#'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
-				#'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
-			#}
 			funcs = self.builtinFuncMap
 
 			try: 
@@ -434,7 +424,7 @@ class Bot(object):
 				# restarted. 
 				# Yes, this means that unlike most programs, 'reload' actually does more than 'restart'. 
 
-				# These reside here because it would get messy to put them elsewhere. 
+				# These reside here because it would get messy to put them elsewhere.
 				if (run == 'restart'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Restart requested')
@@ -459,7 +449,6 @@ class Bot(object):
 					else:
 						out = config.privrejectadmin
 
-			
 			# Report errors that occur when running a built-in function
 			except:
 				self.reportErr(sys.exc_info())
