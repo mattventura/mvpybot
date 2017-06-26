@@ -98,6 +98,8 @@ class lineEvent:
 			self.etype = 'part' 
 			self.userString = self.linesplit[0]
 			self.channel = self.linesplit[2]
+			if self.channel[:1] == ':':
+				self.channel = self.channel[1:]
 			if len(self.linesplit) >= 4:
 				self.reason = self.linesplit[3][1:]
 
@@ -105,6 +107,8 @@ class lineEvent:
 			self.etype = 'join'
 			self.userString = self.linesplit[0]
 			self.channel = self.linesplit[2]
+			if self.channel[:1] == ':':
+				self.channel = self.channel[1:]
 			if len(self.linesplit) >= 4:
 				self.reason = self.linesplit[3][1:]
 
@@ -125,7 +129,7 @@ class lineEvent:
 			if self.channel[0] == '#':
 				self.isPrivate = False
 			else:
-				self.isPrivate = True 
+				self.isPrivate = True
 			
 			if self.isPrivate:
 				self.channel = self.userString.split(':')[1].split('!')[0]
