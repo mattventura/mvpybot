@@ -1419,7 +1419,10 @@ class Bot(object):
 
 	
 	def getUsersInChannel(self, channel):
-		userEntries = self.chanMap[channel].userMap.values()
+		try:
+			userEntries = self.chanMap[channel].userMap.values()
+		except KeyError:
+			return []
 		return map(str, userEntries)
 
 
