@@ -98,7 +98,7 @@ class ircSrv:
 		else:
 			raise Exception('Tried to send data to server when not connected. ')
 
-	def send(self, data, alt = False):
+	def send(self, data, alt = None):
 		sendparts = data.split('\n')
 
 		if (len(sendparts) > 2):
@@ -110,7 +110,8 @@ class ircSrv:
 				if len(part) > 1:
 					self._sendToServerRaw(sendparts[0] + '\n')
 					self.lastMsgOut = time.time()
-					if alt:
+					# False is legacy
+					if (alt is not None) and (alt is not False):
 						self.showout(alt)
 					else:
 						self.showout(part)
@@ -168,8 +169,14 @@ class ircSrv:
 
 	def waitForHsFinish(self):
 		line = ''
+		remaining = 30
 		while (line.find('001') < 1):
-			line = self._recvRaw()
+			try:
+				line = self._recvRaw()
+			except socket.timeout:
+				remaining -= 1
+				if remaining == 0:
+					raise
 			self.showin(line)
 
 		self.showdbg('Connected')
