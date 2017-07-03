@@ -48,8 +48,8 @@ def reload_all():
 	reload(builtinfuncs)
 	reload(classes)
 
-#Because sha is depreciated, we use the import ____ as ____ trickery
-#   as well as try...except magic.
+# Because sha is depreciated, we use the import ____ as ____ trickery
+# as well as try...except magic.
 try:
 	from hashlib import sha1 as sha
 except ImportError:
@@ -428,7 +428,7 @@ class Bot(object):
 				if (run == 'restart'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Restart requested')
-						self.conn.privmsg(channel,  'Restarting...')
+						self.conn.privmsg(channel, 'Restarting...')
 						return {'action': "restart"}
 					else:
 						out = config.privrejectadmin
@@ -436,7 +436,7 @@ class Bot(object):
 				elif (run == 'die'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Stop requested')
-						self.conn.privmsg(channel,  'Stopping...')
+						self.conn.privmsg(channel, 'Stopping...')
 						return {'action': "die"}
 					else:
 						out = config.privrejectadmin
@@ -444,7 +444,7 @@ class Bot(object):
 				elif (run == 'reload'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Reload requested')
-						self.conn.privmsg(channel,  'Reloading...')
+						self.conn.privmsg(channel, 'Reloading...')
 						return {'action': "reload"}
 					else:
 						out = config.privrejectadmin
@@ -532,8 +532,9 @@ class Bot(object):
 	# To make it un-hangable, look at the math plugin for an example
 	# of how to modify it.
 	# And of course, MAKE SURE MODULES THAT USE THIS ARE VERY SECURE!
-	# If you aren't planning on using any modules that make use of this, 
-	# you may want to just commend this out. 
+	# There's nothing stopping modules from just calling Popen or other
+	# things that would allow external calls anyway, so there's no global
+	# setting to enable/disable this.
 	def syscmd(self, command):
 		self.showdbg('SYSCMD called. Running "' + ' '.join(command) + '".')
 		result = Popen(command, stdout = PIPE).communicate()[0]
@@ -1382,6 +1383,7 @@ class Bot(object):
 
 	def processPart(self, event):
 		try:
+			self.showdbg('Removing user %s from channel %s' % (event.nick, event.channel))
 			self.chanMap[event.channel].removeMemberIfExists(event.nick)
 		except Exception as e:
 			self.reportErr(sys.exc_info())
