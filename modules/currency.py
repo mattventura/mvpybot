@@ -1,16 +1,6 @@
 #!/usr/bin/python
 
-enabled = False
-timeBetweenFlush = 60
-default_accumInterval = 30
-default_balancePerInterval = 1
-userBalanceList = 'modules/currency_data/%s.json'
-channelConfig = {
-    '#mainchannel': {'name': 'dollars', 'perInterval': 5},
-    '#alias': {'shared': '#mainchannel'},
-    '#otherchannel': {'name': 'donuts'}
-}
-
+from modules.currency_config import *
 
 import json
 import time
