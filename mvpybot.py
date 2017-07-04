@@ -6,7 +6,6 @@ import options
 import config
 import sys
 import socket
-#import builtins
 import sharedstate
 from imp import reload
 
