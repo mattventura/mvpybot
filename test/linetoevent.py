@@ -91,19 +91,19 @@ class LineToEventTests(unittest.TestCase):
 		self.assertEqual(le.reason, 'asdf')
 
 	def test_privmsg(self):
-		le = self.get_line_event(':person!person@cool.website.com PRIVMSG #bigchannel :a message	 and some	 spaces')
+		le = self.get_line_event(':person!person@cool.website.com PRIVMSG #bigchannel :a message  and some  spaces')
 		self.assertIsInstance(le, classes.PrivmsgEvent)
 		self.assertEqual(le.etype, 'privmsg')
 		self.assertEqual(le.channel, '#bigchannel')
-		self.assertEqual(le.message, 'a message		and some	spaces')
+		self.assertEqual(le.message, 'a message  and some  spaces')
 		self.assertEqual(le.nick, 'person')
 		self.assertFalse(le.isPrivate)
 
 	def test_privmsg_private(self):
-		le = self.get_line_event(':person!person@cool.website.com PRIVMSG person :a message		 and some	 spaces')
+		le = self.get_line_event(':person!person@cool.website.com PRIVMSG person :a message  and some  spaces')
 		self.assertIsInstance(le, classes.PrivmsgEvent)
 		self.assertEqual(le.etype, 'privmsg')
 		self.assertEqual(le.channel, 'person')
-		self.assertEqual(le.message, 'a message		 and some	 spaces')
+		self.assertEqual(le.message, 'a message  and some  spaces')
 		self.assertEqual(le.nick, 'person')
 		self.assertTrue(le.isPrivate)
