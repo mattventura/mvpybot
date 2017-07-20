@@ -308,7 +308,7 @@ class Bot(object):
 
 				# If a user changes their nick, update the auth list accordingly
 				elif (e.etype == 'nick'):
-					for i in authlist:
+					for i in self.authlist:
 						if i.nick == e.nick:
 							self.showdbg('Upddating nick %s in authlist to %s' %(e.nick, e.newNick))
 							i.nick = e.newNick
@@ -802,11 +802,11 @@ class Bot(object):
 			found = False
 			iName = msg.nick
 			if self.getlevel(iName) != 0:
-				for i in authlist:
+				for i in self.authlist:
 					
 					alName = i.nick
 					if alName == iName:
-						authlist.remove(i)
+						self.authlist.remove(i)
 						found = True
 
 				if found:
@@ -1058,7 +1058,7 @@ class Bot(object):
 
 		else:
 			self.showdbg('Dumping auth list. Format is nick, authname, level')
-			for i in authlist:
+			for i in self.authlist:
 				self.showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
 				return('Dumped auth list to console')
 
