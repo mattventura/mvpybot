@@ -32,7 +32,8 @@ import os
 import time
 import random
 import inspect
-import builtins
+#import builtins
+import sharedstate
 import traceback
 from imp import reload
 import re
@@ -47,8 +48,8 @@ def reload_all():
 	reload(builtinfuncs)
 	reload(classes)
 
-#Because sha is depreciated, we use the import ____ as ____ trickery
-#   as well as try...except magic.
+# Because sha is depreciated, we use the import ____ as ____ trickery
+# as well as try...except magic.
 try:
 	from hashlib import sha1 as sha
 except ImportError:
@@ -70,6 +71,8 @@ sys.path.append("modules")
 class Bot(object):
 
 
+
+
 	def BotMain(self, botConn):
 		try:
 			self.BotInit()
@@ -82,6 +85,13 @@ class Bot(object):
 
 	def __init__(self, botConn):
 		self.conn = botConn
+		self.builtinFuncMap = {'test' : self.testFunc, 
+			'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
+			'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
+			'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
+			'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
+			'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
+		}
 
 	def BotInit(self):
 		# Announce that we are logging
@@ -143,7 +153,7 @@ class Bot(object):
 				self.library_dict[pname] = module
 				if hasattr(module, 'register') and getattr(module, 'enabled', 1):
 					regs = self
-					builtins.lastMod = module
+					#builtins.lastMod = module
 					try:
 						getattr(module, 'register')(regs)
 					except:
@@ -175,9 +185,6 @@ class Bot(object):
 		self.host = self.conn.host
 		self.port = self.conn.port
 
-		# More legacy stuff
-		builtins.host = conn.host
-
 		# Expose our logger function to the connection object
 		# so that it can properly log/output data. 
 		self.conn.setLogger(self.logdata)
@@ -201,7 +208,7 @@ class Bot(object):
 			
 		# For if we reload, this tries to reload the old auth list
 		def loadauthlist():
-			return builtins.authlist
+			return sharedstate.authlist
 
 		# We only do this if we're using explicit authentication
 		if self.conn.userAuth:
@@ -284,17 +291,17 @@ class Bot(object):
 
 							if lstat['action'] == "reload":
 								if self.conn.userAuth:
-									builtins.authlist = self.authlist
+									sharedstate.authlist = self.authlist
 								self.logdata(time.strftime('---- [ Session closed at %y-%m-%d %H:%M:%S ] ---- (Reason: reload requested)'))
 								raise BotStopEvent('Reload requested', 2)
 
-					# If there was any error, do our usual error reporting. 
+					# If there was any error, do our usual error reporting.
 					except BotStopEvent as e:
 						raise
 					except:
 						self.reportErr(sys.exc_info())
-	
-				# Fail gracefuly if the server gives us an error. 
+
+				# Fail gracefuly if the server gives us an error.
 				if e.etype == 'error':
 					self.logdata(time.strftime('---- [ Session closed at %y-%m-%d %H:%M:%S ] ---- (Reason: received error from server)'))
 					self.ErrorAndStop('Received error from server', 255)
@@ -303,14 +310,14 @@ class Bot(object):
 				elif (e.etype == 'quit'):
 					for i in self.authlist:
 						if i.nick == e.nick:
-							self.showdbg('Removing nick %s from authlist due to quit' %(e.nick))
+							self.showdbg('Removing nick %s from authlist due to quit' % (e.nick))
 							self.authlist.remove(i)
 
 				# If a user changes their nick, update the auth list accordingly
 				elif (e.etype == 'nick'):
 					for i in self.authlist:
 						if i.nick == e.nick:
-							self.showdbg('Upddating nick %s in authlist to %s' %(e.nick, e.newNick))
+							self.showdbg('Upddating nick %s in authlist to %s' % (e.nick, e.newNick))
 							i.nick = e.newNick
 					self.processNick(e)
 
@@ -329,7 +336,7 @@ class Bot(object):
 				for function in self.listenerregistry[e.etype]:
 					l = function[0]
 					target = function[1]
-					
+
 					try:
 						target(e)
 					except:
@@ -365,10 +372,9 @@ class Bot(object):
 
 		run = ''
 		out = ''
-		length = len(msg)
 
 		# Quick fix
-		if not(length):
+		if not msg:
 			msg = '(null)'
 
 		# There are three ways to call a command:
@@ -399,39 +405,30 @@ class Bot(object):
 			# We construct this object to pass to functions that correspond to actual chat functions
 			msgObj = cmdMsg(self, channel, sender, cmd, run, isprivate)
 
-			# Builtin functions
-			# Some of these can be externalized, others cannot since some of the auth system stuff
-			# never gets exposed to them. 
-			funcs = {'test' : self.testFunc, 
-				'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
-				'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
-				'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
-				'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
-				'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
-			}
+			funcs = self.builtinFuncMap
 
-			try: 
+			try:
 				# If the command is in our built-ins, run it
 				if run in funcs:
 					out = funcs[run](msgObj)
 
 				# Commands for stopping/starting/reloading/etc: This is important so read this.
-				# It's not incredibly intuitive. 
+				# It's not incredibly intuitive.
 				# reload: the wrapper one level above this bot (mvpybot.py) just does a reload()
 				# on the bot module, then restarts it. Saves authenticated users first. Does not
-				# use a new connection. 
+				# use a new connection.
 				# restart: restarts the bot. Saves auth list. Doesn't actually reload the bot
-				# so I'm not sure when you would actually want to use this. Uses same connection. 
+				# so I'm not sure when you would actually want to use this. Uses same connection.
 				# die: both the bot and the wrapper one level above it stop. If you ran mvpybot.py
 				# directly, it will stop. If you're running start.py, it will automatically be
-				# restarted. 
-				# Yes, this means that unlike most programs, 'reload' actually does more than 'restart'. 
+				# restarted.
+				# Yes, this means that unlike most programs, 'reload' actually does more than 'restart'.
 
-				# These reside here because it would get messy to put them elsewhere. 
+				# These reside here because it would get messy to put them elsewhere.
 				if (run == 'restart'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Restart requested')
-						self.conn.privmsg(channel,  'Restarting...')
+						self.conn.privmsg(channel, 'Restarting...')
 						return {'action': "restart"}
 					else:
 						out = config.privrejectadmin
@@ -439,7 +436,7 @@ class Bot(object):
 				elif (run == 'die'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Stop requested')
-						self.conn.privmsg(channel,  'Stopping...')
+						self.conn.privmsg(channel, 'Stopping...')
 						return {'action': "die"}
 					else:
 						out = config.privrejectadmin
@@ -447,41 +444,39 @@ class Bot(object):
 				elif (run == 'reload'):
 					if (self.getlevel(sender) >= self.getPrivReq('power', 20)):
 						self.showdbg('Reload requested')
-						self.conn.privmsg(channel,  'Reloading...')
+						self.conn.privmsg(channel, 'Reloading...')
 						return {'action': "reload"}
 					else:
 						out = config.privrejectadmin
 
-			
 			# Report errors that occur when running a built-in function
 			except:
 				self.reportErr(sys.exc_info())
 				out = config.intErrorMsg
-			
+
 			# Functions can return True if they wish to indicate that they were successful
 			# but do not want to actually send anything to the server, or they have sent
-			# things to the server through conn.* methods. 
+			# things to the server through conn.* methods.
 			nodata = False
 			try:
-				if out == True:
+				if out is True:
 					nodata = True
 			except:
 				pass
 			if nodata:
 				return {}
-			
-			
+
 			if (out):
 				# out might either be a formatted PRIVMSG or just some text
 				# that should be sent to the correct place
-				# Actually, it should never be formatted anymore. 
+				# Actually, it should never be formatted anymore.
 				if (out[0:7] != 'PRIVMSG'):
 					conn.privmsg(channel, out)
 				else:
 					conn.send(out + '\n')
 
 			# Try to run a module function, since we'll only get to this point
-			# if it wasn't handled by an appropriate builtin. 
+			# if it wasn't handled by an appropriate builtin.
 			else:
 				# Check if the name we want exists in funcregistry
 				if run in self.funcregistry:
@@ -497,16 +492,16 @@ class Bot(object):
 						if out is True:
 							return {}
 						if (out.split(' ')[0] != 'PRIVMSG'):
-							out = 'PRIVMSG %s :%s\n' %(channel, out)
+							out = 'PRIVMSG %s :%s\n' % (channel, out)
 					except:
-						# If an error occurs, record it and tell the user something happened. 
+						# If an error occurs, record it and tell the user something happened.
 						self.reportErr(sys.exc_info())
 						out = 'PRIVMSG %s :%s' % (channel, config.modErrorMsg)
-						
-				else: 
+
+				else:
 					found = 0
 
-				# Send out data to the server, assuming there's something to send. 
+				# Send out data to the server, assuming there's something to send.
 				try:
 					if (out):
 						if (out[-1] != '\n'):
@@ -515,29 +510,28 @@ class Bot(object):
 
 					# If the command was not found, tell the user that.
 					# Note that this has to be enabled in config, since
-					# it can end up doing annoying/undesired things sometimes. 
+					# it can end up doing annoying/undesired things sometimes.
 					elif config.cnf_enable:
 						out = 'PRIVMSG ' + channel + ' :Command not found'
 						conn.send(out + '\n')
 
-				# Report any error that may have happened when processing the data. 
+				# Report any error that may have happened when processing the data.
 				except:
 					self.reportErr(sys.exc_info())
 
-		# This function only returns stuff if we need to signal the main loop to exit. 
+		# This function only returns stuff if we need to signal the main loop to exit.
 		return {}
 
 	# Class definitions
-
-
 
 	# This is a function that can be used to call external programs
 	# Be sure that the program does not hang, or else the bot will hang
 	# To make it un-hangable, look at the math plugin for an example
 	# of how to modify it.
 	# And of course, MAKE SURE MODULES THAT USE THIS ARE VERY SECURE!
-	# If you aren't planning on using any modules that make use of this, 
-	# you may want to just commend this out. 
+	# There's nothing stopping modules from just calling Popen or other
+	# things that would allow external calls anyway, so there's no global
+	# setting to enable/disable this.
 	def syscmd(self, command):
 		self.showdbg('SYSCMD called. Running "' + ' '.join(command) + '".')
 		result = Popen(command, stdout = PIPE).communicate()[0]
@@ -546,17 +540,19 @@ class Bot(object):
 	# Tries to guess whether 'a' or 'an' should be used with a word
 	@staticmethod
 	def getArticle(word):
-		if word.lower() == 'user':
-			return('a')
+		if not word:
+			return ''
+		elif word.lower() == 'user':
+			return 'a'
 		elif word[0] in ('a', 'e', 'i', 'o', 'u'):
-			return('an')
+			return 'an'
 		else:
-			return('a')
+			return 'a'
 
 	# Tries to find a privilege level in config.py
-	# Failing that, it will return the default argument. 
+	# Failing that, it will return the default argument.
 	# This can be used to allow addons to specify a default privilege
-	# level while still allowing it to be overridden in config.py. 
+	# level while still allowing it to be overridden in config.py.
 	def getPrivReq(self, priv, default = 0):
 		if priv in config.reqprivlevels:
 			return config.reqprivlevels[priv]
@@ -571,13 +567,13 @@ class Bot(object):
 		except UserNotFound:
 			# If not found, just assume that the user has a level of 0
 			# and return True if the privilege requested is less than
-			# or equal to that. 
+			# or equal to that.
 			return(0 >= self.getPrivReq(priv, default))
-		# If the user has specifically been denied the privilege in question, 
+		# If the user has specifically been denied the privilege in question,
 		# return False
 		if priv in auth.deny:
 			return False
-		# Otherwise, if they have specifically been granted it, return True. 
+		# Otherwise, if they have specifically been granted it, return True.
 		elif priv in auth.grant:
 			return True
 		# If the user's level is above the level required to implicitly grant the
@@ -588,15 +584,14 @@ class Bot(object):
 		else:
 			return False
 
-
 	# Builtin command functions
 
 	# Test function
 	def testFunc(self, msg):
-		return('%s: test' %msg.nick)
+		return('%s: test' % msg.nick)
 
 	# Lookup user info for a particular username
-	# Requires acctInfo priv, defaults to 0.  
+	# Requires acctInfo priv, defaults to 0.
 	def userinfoFunc(self, msg):
 
 		if (len(msg.cmd) != 2):
@@ -616,64 +611,56 @@ class Bot(object):
 			fLevel = authEntry.level
 			fLevelStr = levelToStr(fLevel)
 			article = getArticle(fLevelStr)
-			return('%s is level %s (%s %s).' %(fUser, str(fLevel), article, fLevelStr))
-						
-					
-	# Look up a user's info from files only. 
+			return('%s is level %s (%s %s).' % (fUser, str(fLevel), article, fLevelStr))
+
 	def userLookup(self, authName):
+		"""
+		Look up a user's info from files only.
+		"""
 
-			if conn.userAuth:
-				authFile = 'users'
-			else:
-				authFile = 'ausers'
+		if conn.userAuth:
+			authFile = 'users'
+		else:
+			authFile = 'ausers'
 
-			with open(authFile,  'r') as f:
+		with open(authFile, 'r') as f:
 
-				for fline in f.readlines():
+			for fline in f.readlines():
 
-					fline = fline.rstrip()
-					lineParts = fline.split(' ')
-					
+				fline = fline.rstrip()
+				lineParts = fline.split(' ')
 
-					if lineParts[0] == authName:
+				if lineParts[0] == authName:
 
-						fUser = lineParts[0]
-						# fPass = lineParts[1]
-						if conn.userAuth:
-							fLevel = int(lineParts[2])
-							fPerms = lineParts[3:]
-						else:
-							fLevel = int(lineParts[1])
-							fPerms = lineParts[2:]
+					fUser = lineParts[0]
+					# fPass = lineParts[1]
+					if conn.userAuth:
+						fLevel = int(lineParts[2])
+						fPerms = lineParts[3:]
+					else:
+						fLevel = int(lineParts[1])
+						fPerms = lineParts[2:]
 
-						return(uEntry(fUser, fLevel, fPerms))
+					return(uEntry(fUser, fLevel, fPerms))
 
-			raise(UserNotFound(authName))	
+		raise(UserNotFound(authName))
 
-					
-
-	# Format a permissions string
-	# Format is (+|-)<perm><spacer>
-	# For example, +acctInfo -acctMgmt
-	# This is used both to format it for the auth files (spacer = ' ')
-	# and for user-friendly output for account management commands (spacer = ', ')
 	def formatPerms(self, grant, deny, spacer = ' '):
-		outStr = ''
-		for i in grant:
-			outStr += '+%s%s' %(i, spacer)
-		for i in deny:
-			outStr += '-%s%s' %(i, spacer)
-		# Fenceposting, fix, remove the data at the end of the string
-		# equal to the length of the spacer. 
-		outStr = outStr[:(-1*len(spacer))]
+		"""
+		Format a permissions string
+		Format is (+|-)<perm><spacer>
+		For example, +acctInfo -acctMgmt
+		This is used both to format it for the auth files (spacer = ' ')
+		and for user-friendly output for account management commands (spacer = ', ')
+		"""
+		perms = ['+' + perm for perm in grant] + ['-' + perm for perm in deny]
+		outStr = spacer.join(perms)
 		return(outStr)
 
-
-
-	# Authenticate a user
 	def authFunc(self, msg):
+		"""User-facing command to authenticate themselves"""
 
-		# If using implicit auth, there is no auth command. 
+		# If using implicit auth, there is no auth command.
 		if not(self.conn.userAuth):
 			return(config.simpleAuthNotice)
 
@@ -681,22 +668,22 @@ class Bot(object):
 		elif len(msg.cmd) != 3:
 			return('Incorrect syntax. Usage: auth <username> <pass>')
 
-		# If someone tries to use this command out in the open. 
+		# If someone tries to use this command out in the open.
 		elif not(msg.isPrivate):
 			return('''Use this in a /msg, don't use it in a channel. Now go change your passsword.''')
-		
-		# If someone is already authenticated, remind them. 
+
+		# If someone is already authenticated, remind them.
 		elif self.getlevel(msg.nick) != 0:
 			return('You are already authenticated. If you would like to change accounts, you can deauth and try again.')
 
-		# If none of the above apply, it's time to check their credentials. 
+		# If none of the above apply, it's time to check their credentials.
 		else:
 			iName = msg.cmd[1].rstrip()
 			iPass = msg.cmd[2].rstrip()
 
 			with open('users', 'r') as f:
-				# found means we found the username in the auth file. 
-				# correct means the password actually matched. 
+				# found means we found the username in the auth file.
+				# correct means the password actually matched.
 				correct = False
 				found = False
 				self.showdbg('%s is attempting to authenticate.' % iName)
@@ -713,28 +700,27 @@ class Bot(object):
 						perms = lineParts[3:]
 						# The password in the file might be plaintext (e.g. if it was manually
 						# edited into the file by an administrator) or it may be hashed (every other
-						# scenario). 
+						# scenario).
 						if iPass == fPass:
 							correct = True
 						elif ('HASH:' + sha(iPass.encode()).hexdigest()) == fPass:
 							correct = True
-							
+
 			# Correct username
 			if found:
 				# Correct username + password
 				if correct:
 					# If they have explicit permissions specified in the file, add those
-					# into our aUser object. 
+					# into our aUser object.
 					if perms:
 						self.authlist.append(aUser(msg.nick, iName, fLevel, perms))
 					else:
 						self.authlist.append(aUser(msg.nick, iName, fLevel))
-						
 
-					self.showdbg('%s is authenticated' %iName)
+					self.showdbg('%s is authenticated' % iName)
 
 					# 'auths' is the command to silently succeed, i.e. we don't report
-					# the success back to the user. 
+					# the success back to the user.
 					if msg.run == 'auths':
 						return(True)
 
@@ -744,18 +730,20 @@ class Bot(object):
 
 				# Correct username, but wrong password
 				else:
-					self.showdbg('%s tried to authenticate, but their password was rejected' %iName)
+					self.showdbg('%s tried to authenticate, but their password was rejected' % iName)
 					return('Incorrect password')
 
 			# Wrong username
 			else:
-				self.showdbg('%s tried to authenticate, but their username was not found' %iName)
+				self.showdbg('%s tried to authenticate, but their username was not found' % iName)
 				return('Incorrect username')
-						
-	# Function to check the user level of yourself or someone else
-	# Requires acctInfo priv
+
 	def levelFunc(self, msg):
-		
+		"""
+		User-facing command to get account info. Requires acctInfo privilege
+		or level 3 if it is not configured.
+		"""
+
 		if not(hasPriv(msg.nick, 'acctInfo', 3)):
 			return(config.privrejectgeneric)
 
@@ -773,11 +761,10 @@ class Bot(object):
 			return('User not found.')
 		strLevel = levelToStr(lAuth.level)
 
-
 		# Always print level info
-		outStr = '%s is level %s (%s %s). ' %(lNick, str(lAuth.level), getArticle(strLevel), strLevel)
+		outStr = '%s is level %s (%s %s). ' % (lNick, str(lAuth.level), getArticle(strLevel), strLevel)
 
-		# Additionally, print granted and/or denied permissions if they exist. 
+		# Additionally, print granted and/or denied permissions if they exist.
 		if lAuth.grant:
 			outStr += 'Granted permissions: '
 			for i in lAuth.grant:
@@ -794,7 +781,7 @@ class Bot(object):
 
 	# Log out
 	def deauthFunc(self, msg):
-		
+
 		if not(self.conn.userAuth):
 			return(config.simpleAuthNotice)
 
@@ -803,7 +790,8 @@ class Bot(object):
 			iName = msg.nick
 			if self.getlevel(iName) != 0:
 				for i in self.authlist:
-					
+
+
 					alName = i.nick
 					if alName == iName:
 						self.authlist.remove(i)
@@ -820,12 +808,12 @@ class Bot(object):
 
 	# Register a new user
 	def registerUserFunc(self, msg):
-		
+
 		if not(conn.userAuth):
 			return(config.simpleAuthNotice)
 
 		else:
-			
+
 			if (len(msg.cmd) != 3):
 				return('Incorrect syntax. Usage: register <username> <password>')
 
@@ -836,21 +824,18 @@ class Bot(object):
 					return('Sorry, that username is already taken')
 				return('Account created. You can now authenticate.')
 
-
-	# Command to actually add a new user. 
-	# Used by both the register function and the account management function (user aka perm)
-	# to actually expose this functionality to users/admins. 
 	def addUser(self, name, password = None, level = config.newUserLevel, grant = set(), deny = set()):
-		
+		"""
+		Internal function to add a new user.
+		"""
 		if conn.userAuth:
-			if password == None:
+			if password is not None:
 				raise(NeedPasswordError())
 			authFile = 'users'
 		else:
-			if password != None:
+			if password is not None:
 				raise(PassNotNeededError())
 			authFile = 'ausers'
-
 
 		with open(authFile, 'r') as f:
 			valid = True
@@ -863,21 +848,18 @@ class Bot(object):
 		if valid:
 			with open(authFile, 'a') as f:
 				if conn.userAuth:
-					fileOut = '%s HASH:%s %s %s\n' %(name, sha(password.encode()).hexdigest(), str(config.newUserLevel), formatPerms(grant, deny))
+					fileOut = '%s HASH:%s %s %s\n' % (name, sha(password.encode()).hexdigest(), str(config.newUserLevel), formatPerms(grant, deny))
 				else:
-					fileOut = '%s %s %s\n' %(name, str(config.newUserLevel), formatPerms(grant, deny))
+					fileOut = '%s %s %s\n' % (name, str(config.newUserLevel), formatPerms(grant, deny))
 				f.write(fileOut)
 
-
-
-	# Function to change a user's password
-	# Exposed to user through pass and passwd commands. 
 	def chgUserPass(self, user, newPass):
+		"""Internal function for changing a user's password"""
 		if not(conn.userAuth):
 			raise(Exception('Simple auth is enabled, so there are no passwords to change'))
 
 		else:
-			self.showdbg('Attempting to change password for %s' %user)
+			self.showdbg('Attempting to change password for %s' % user)
 
 			if conn.userAuth:
 				authFile = 'users'
@@ -887,12 +869,12 @@ class Bot(object):
 			with open(authFile, 'r') as f:
 				outData = ''
 				found = False
-				
+
 				for fLine in f:
-					
+
 					lineSplit = fLine.split(' ')
 					if user == lineSplit[0]:
-						outData += '%s HASH:%s %s' %(lineSplit[0], sha(newPass.encode()).hexdigest(), ' '.join(lineSplit[2:]))
+						outData += '%s HASH:%s %s' % (lineSplit[0], sha(newPass.encode()).hexdigest(), ' '.join(lineSplit[2:]))
 						self.showdbg('Found entry, modifying...')
 						found = True
 
@@ -903,19 +885,18 @@ class Bot(object):
 				with open(authFile, 'w') as f:
 					f.write(outData)
 					f.truncate()
-				
-				self.showdbg('Changed password for %s' %user)
+
+				self.showdbg('Changed password for %s' % user)
 				return
 
 			else:
-				
-				self.showdbg('Could not find user %s' %user)
+
+				self.showdbg('Could not find user %s' % user)
 				raise(UserNotFound(user))
-					
-	# Function to change a user's level
+
 	def chgUserLvl(self, user, newLevel):
-		
-		self.showdbg('Attempting to change level for %s' %user)
+		"""Change a user's privilege level"""
+		self.showdbg('Attempting to change level for %s' % user)
 
 		if conn.userAuth:
 			authFile = 'users'
@@ -925,16 +906,16 @@ class Bot(object):
 		with open(authFile, 'r') as f:
 			outData = ''
 			found = False
-			
+
 			for fLine in f:
-				
+
 				lineSplit = fLine.split(' ')
-				
+
 				if user == lineSplit[0]:
 					if conn.userAuth:
-						outData += '%s %s %s' %(' '.join(lineSplit[0:2]), str(newLevel), ' '.join(lineSplit[3:]))
+						outData += '%s %s %s' % (' '.join(lineSplit[0:2]), str(newLevel), ' '.join(lineSplit[3:]))
 					else:
-						outData += '%s %s %s' %(lineSplit[0], str(newLevel), ' '.join(lineSplit[2:]))
+						outData += '%s %s %s' % (lineSplit[0], str(newLevel), ' '.join(lineSplit[2:]))
 					self.showdbg('Found entry, modifying...')
 					found = True
 
@@ -945,40 +926,41 @@ class Bot(object):
 			with open(authFile, 'w') as f:
 				f.write(outData)
 				f.truncate()
-			
-			self.showdbg('Changed level for %s' %user)
+
+			self.showdbg('Changed level for %s' % user)
 			return
 
 		else:
-			
-			self.showdbg('Could not find user %s' %user)
+
+			self.showdbg('Could not find user %s' % user)
 			raise(UserNotFound(user))
-				
-			
-	# Function to change a user's privileges
-	# This function requires ALL of the privileges you want the user to have after the change. 
+
 	def chgUserPrivs(self, user, grant, deny):
-		
-		self.showdbg('Attempting to change privs for %s' %user)
+		"""
+		Change a user's privileges.
+		This completely replaces the user's privileges, so you need to specify
+		ALL of the desired privileges to be granted and denied.
+		"""
+
+		self.showdbg('Attempting to change privs for %s' % user)
 		if conn.userAuth:
 			authFile = 'users'
 		else:
 			authFile = 'ausers'
 
-
 		with open(authFile, 'r') as f:
 			outData = ''
 			found = False
-			
+
 			for fLine in f:
 				lineSplit = fLine.split(' ')
-				
+
 				if user == lineSplit[0]:
 					newPrivs = formatPerms(grant, deny)
 					if conn.userAuth:
-						outData += '%s %s\n' %(' '.join(lineSplit[0:3]), newPrivs)
+						outData += '%s %s\n' % (' '.join(lineSplit[0:3]), newPrivs)
 					else:
-						outData += '%s %s\n' %(' '.join(lineSplit[0:2]), newPrivs)
+						outData += '%s %s\n' % (' '.join(lineSplit[0:2]), newPrivs)
 					self.showdbg('Found entry, modifying...')
 					found = True
 
@@ -989,17 +971,16 @@ class Bot(object):
 			with open(authFile, 'w') as f:
 				f.write(outData)
 				f.truncate()
-			
-			self.showdbg('Changed privs for %s' %user)
+
+			self.showdbg('Changed privs for %s' % user)
 			return
 
 		else:
-			self.showdbg('Could not find user %s' %user)
+			self.showdbg('Could not find user %s' % user)
 			raise(UserNotFound(user))
 
-	# Function to change your own pass
 	def passFunc(self, msg):
-		
+		"""User-facing function to change one's own password"""
 		if not(conn.userAuth):
 			return(config.simpleAuthNotice)
 
@@ -1022,13 +1003,11 @@ class Bot(object):
 						return('An error has occurred')
 
 				else:
-					
-					return('You must be authtenticated to use this command')
-							
 
-	# Function to change someone else's password. 
+					return('You must be authtenticated to use this command')
+
 	def passwdFunc(self, msg):
-		
+		"""User-facing function to change someone else's password"""
 		if not(conn.userAuth):
 			return(config.simpleAuthNotice)
 
@@ -1042,14 +1021,14 @@ class Bot(object):
 			result = chgUserPass(msg.cmd[1], msg.cmd[2])
 
 			if result:
-				return('Successfully changed password for %s' %msg.cmd[1])
+				return('Successfully changed password for %s' % msg.cmd[1])
 
 			else:
-				return('Could not find user %s in the users file' %msg.cmd[1])
+				return('Could not find user %s in the users file' % msg.cmd[1])
 
-	# Dump authenticated users to the console/log. 
 	def authDump(self, msg):
-		
+		"""Dump authenticated users to the console/log"""
+
 		if not(conn.userAuth):
 			return(config.simpleAuthNotice)
 
@@ -1058,26 +1037,27 @@ class Bot(object):
 
 		else:
 			self.showdbg('Dumping auth list. Format is nick, authname, level')
+
 			for i in self.authlist:
-				self.showdbg('%s, %s, %s, %s, %s' %(i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
+				self.showdbg('%s, %s, %s, %s, %s' % (i.nick, i.authName, str(i.level), str(i.grant), str(i.deny)))
+
 				return('Dumped auth list to console')
 
-	# Generate an error. 
 	def errTest(self, msg):
-
+		"""Generate an error for testing purposes"""
 		if hasPriv(msg.nick, 'errors', 20):
 			self.showdbg('Error test requested')
-			msg.conn.send('PRIVMSG %s :Error requested. Check the console.\n' %msg.channel)
+			msg.conn.send('PRIVMSG %s :Error requested. Check the console.\n'
+					% msg.channel)
 			time.sleep(1)
 			raise(Exception('User-requested error'))
 		else:
 			return(config.privrejectadmin)
 
-	# The help system
 	def helpFunc(self, msg):
-		
+		"""User-facing command to access the help system"""
 		if len(msg.cmd) == 1:
-			return('PRIVMSG %s :%s Use help <command> for help on a particular command. To use a command either say %s: <command> or %scommand.\n' %(msg.channel, config.defaulthelp, self.nick, options.cmdprefix))
+			return('PRIVMSG %s :%s Use help <command> for help on a particular command. To use a command either say %s: <command> or %scommand.\n' % (msg.channel, config.defaulthelp, self.nick, options.cmdprefix))  # NOQA
 		else:
 			msg.cmd[1] = msg.cmd[1].rstrip()
 			handled = False
@@ -1085,17 +1065,17 @@ class Bot(object):
 			if msg.cmd[1] in self.helpregistry:
 				item = self.helpregistry[msg.cmd[1]]
 				l = item[0]
-				
+
 				handled = True
 				target = item[1]
-				
+
 				out = target(classes.helpCmd(msg.channel, msg.cmd[1:]))
 				if out.find('PRIVMSG') == -1:
-					out = 'PRIVMSG %s :%s' %(msg.channel, out)
+					out = 'PRIVMSG %s :%s' % (msg.channel, out)
 
 				return(out)
 
-				return('Either that command does not exist, or help has not been written for it. ')
+				return('Either that command does not exist, or help has not been written for it. ')  # NOQA
 
 	# The error system
 	def errFunc(self, msg):
@@ -1103,32 +1083,32 @@ class Bot(object):
 			return config.privrejectadmin
 
 		elif len(msg.cmd) == 1:
-			return('There are currently %s stored errors' %int(len(builtins.errors)))
+			return('There are currently %s stored errors' % len(sharedstate.errors))
 
 		elif msg.cmd[1] == 'last':
-			if len(builtins.errors) > 0:
-				errString = fmtErr(builtins.errors[-1])
+			if len(sharedstate.errors) > 0:
+				errString = fmtErr(sharedstate.errors[-1])
 				errLines = errString.splitlines()
 				for el in errLines:
 					if config.privacy:
 						el = re.sub('/home/.*?/', '/home/***/', el)
-					
-					msg.conn.send('PRIVMSG %s :%s\n' %(msg.channel, el))
+
+					msg.conn.send('PRIVMSG %s :%s\n' % (msg.channel, el))
 				return True
 			else:
 				return('There are no errors to report')
 
 		elif msg.cmd[1] == 'list':
-			if len(builtins.errors) > 0:
+			if len(sharedstate.errors) > 0:
 				outStr = 'Stored errors: '
-				for i in range(len(builtins.errors)):
-					errName = builtins.errors[i][0].__name__
-					outStr += '%s: %s, ' %(str(i), errName)
+				for i in range(len(sharedstate.errors)):
+					errName = sharedstate.errors[i][0].__name__
+					outStr += '%s: %s, ' % (str(i), errName)
 				outStr = outStr[:-2] + '. '
 				return(outStr)
 			else:
 				return('No stored errors to report.')
-		
+
 		else:
 			try:
 				errNum = int(msg.cmd[1])
@@ -1136,17 +1116,17 @@ class Bot(object):
 				return('Syntax error. Usage: errors <errNum | last>.')
 
 			try:
-				err = builtins.errors[errNum]
+				err = sharedstate.errors[errNum]
 			except IndexError:
 				return('Error number is out of bounds')
 
-			errString = fmtErr(builtins.errors[errNum])
+			errString = fmtErr(sharedstate.errors[errNum])
 			errLines = errString.splitlines()
 			for el in errLines:
-				msg.conn.send('PRIVMSG %s :%s\n' %(msg.channel, el))
+				msg.conn.send('PRIVMSG %s :%s\n' % (msg.channel, el))
 			return True
 
-	# Format an error trace into a more friendly format. 
+	# Format an error trace into a more friendly format.
 	def fmtErr(self, err):
 		errParts = traceback.format_exception(err[0], err[1], err[2])
 
@@ -1163,7 +1143,6 @@ class Bot(object):
 			reload(options)
 			return('Reloaded options.py')
 
-
 	# Reload config.py
 	def reloadConfig(self, msg):
 		if not(hasPriv(msg.nick, 'config', 20)):
@@ -1172,13 +1151,11 @@ class Bot(object):
 			self.showdbg('Reloading config...')
 			reload(config)
 			return('Reloaded config.py')
-		
 
 	# Reload a module by name
 	def reloadByName(self, modName):
-		
+
 		module = self.library_dict[modName]
-		builtins.lastMod = module
 
 		regs = self
 
@@ -1195,44 +1172,41 @@ class Bot(object):
 				if mod[0].__name__ == modName:
 					self.listenerregistry[evtype].remove(mod)
 
-
 		try:
 			reload(module)
 		except:
-			self.showErr('Error reloading module %s' %modName)
+			self.showErr('Error reloading module %s' % modName)
 			self.reportErr(sys.exc_info())
 			return(False)
-			
 
 		if getattr(module, 'enabled', True):
-			
+
 			try:
 				getattr(module, 'register')(regs)
 				return(True)
 			except:
-				self.showErr('Error registering module %s' %modName)
+				self.showErr('Error registering module %s' % modName)
 				self.reportErr(sys.exc_info())
 				return(False)
 
 		else:
 			return(True)
-			
 
 	# Register a new function
 	def registerfunction(self, name, function):
-		module = builtins.lastMod
+		module = function.__module__
 		self.funcregistry[name] = [module, function]
 
 	# Add a new listener
 	def addlistener(self, event, function):
-		module = builtins.lastMod
+		module = function.__module__
 		if event not in self.listenerregistry:
 			self.listenerregistry[event] = []
 		self.listenerregistry[event].append([module, function])
 
 	# Add a new help page
 	def addhelp(self, name, function):
-		module = builtins.lastMod
+		module = function.__module__
 		self.helpregistry[name] = [module, function]
 
 	# Function to return the auth object of a nick
@@ -1249,7 +1223,7 @@ class Bot(object):
 			raise UserNotFound(name)
 
 	# Function for getting the level of somebody
-	# Works with both implicit and explicit authentication. 
+	# Works with both implicit and explicit authentication.
 	def getlevel(self, name):
 		found = False
 		iname = name
@@ -1270,16 +1244,15 @@ class Bot(object):
 			return('invalid')
 		try:
 			return(config.privilegelevels[level])
-		except: 
+		except:
 			return(self.levelToStr(level - 1))
-
 
 	# Display data being received from the server
 	# Prefixes it with server name and a >, then logs it
 
 	def dispdata(self, todisp):
 		for line in todisp.splitlines():
-			outstr = '(%s)> %s\n' %(self.conn.host, line.rstrip())
+			outstr = '(%s)> %s\n' % (self.conn.host, line.rstrip())
 			try:
 				sys.stdout.write(outstr)
 			except:
@@ -1294,17 +1267,17 @@ class Bot(object):
 			toshow = str(toshow)
 		for line in toshow.splitlines():
 			if line:
-				outstr = '(%s)* %s' %(self.conn.host, line.rstrip()) 
+				outstr = '(%s)* %s' % (self.conn.host, line.rstrip())
 				self.logdata(outstr)
 
-	# Show and log an error message. 
-	# This prefixes the line with ! after the server part. 
+	# Show and log an error message.
+	# This prefixes the line with ! after the server part.
 	def showErr(self, toshow):
 		if not(isinstance(toshow, str)):
 			toshow = str(toshow)
 		for line in toshow.splitlines():
 			if line:
-				outstr = '(%s)! %s' %(self.conn.host, line.rstrip()) 
+				outstr = '(%s)! %s' % (self.conn.host, line.rstrip())
 				self.logdata(outstr)
 
 	# Report an error to the error collector, and
@@ -1313,17 +1286,16 @@ class Bot(object):
 		formatted = traceback.format_exception(err[0], err[1], err[2])
 		for l in formatted:
 			self.showErr(l)
-		builtins.errors.append(err)
-		
+		sharedstate.errors.append(err)
 
-	# Senddata function here for legacy purposes. 
+	# Senddata function here for legacy purposes.
 	# You should always be doing conn.send now, or one of the other
-	# conn.* methods. 
+	# conn.* methods.
 	def senddata(self, tosend, alt=False):
 		self.conn.send(tosend, alt)
 
 	# logdata(string): Puts the string in the log file, along with a timestamp
-	# Prints the data to console as well. 
+	# Prints the data to console as well.
 
 	def logdata(self, data):
 		print(data)
@@ -1333,7 +1305,7 @@ class Bot(object):
 					timestamp = time.strftime('[%y-%m-%d %H:%M:%S] ')
 					logfile.write(timestamp + data + '\n')
 					logfile.close()
-			except: 
+			except:
 				raise
 				print('!!!ERROR WITH LOG FILE!!!')
 
@@ -1355,21 +1327,17 @@ class Bot(object):
 		self.showErr(text)
 		raise BotStopEvent(text, retval)
 
-
 	def ErrorAndStop(self, text, retval):
 		self.reportErr(sys.exc_info())
 		self.BotStop(text, retval)
-
 
 	def JoinChannel(self, channelName):
 		self.conn.joinChannel(channelName)
 		self.chanMap[channelName] = ChannelMapEntry(channelName)
 
-
 	def PartChannel(self, channelName):
 		self.conn.partChannel(channelName)
 		del self.chanMap[channelName]
-
 
 	def processJoin(self, event):
 		try:
@@ -1378,13 +1346,13 @@ class Bot(object):
 		except Exception as e:
 			self.reportErr(sys.exc_info())
 
-
 	def processPart(self, event):
 		try:
+			self.showdbg('Removing user %s from channel %s'
+					% (event.nick, event.channel))
 			self.chanMap[event.channel].removeMemberIfExists(event.nick)
 		except Exception as e:
 			self.reportErr(sys.exc_info())
-
 
 	namesCache = {}
 
@@ -1401,14 +1369,10 @@ class Bot(object):
 
 		self.namesCache[channel] += names
 
-
 	def process366(self, event):
 		channel = event.linesplit[3]
 		allNames = namesCache.pop(channel)
 		self.chanMap[channel].refresh(allNames)
-
-	
-
 
 	def processNick(self, event):
 		old = event.nick
@@ -1416,11 +1380,12 @@ class Bot(object):
 		for channelEntry in self.chanMap.values():
 			channelEntry.renameIfExists(old, new)
 
-	
 	def getUsersInChannel(self, channel):
-		userEntries = self.chanMap[channel].userMap.values()
+		try:
+			userEntries = self.chanMap[channel].userMap.values()
+		except KeyError:
+			return []
 		return map(str, userEntries)
-
 
 	def getChannels(self):
 		return self.chanMap.keys()

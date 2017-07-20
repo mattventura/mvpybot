@@ -21,6 +21,10 @@ class UserNotFound(Exception):
 		return('Could not find user %s' %self.user)
 
 
+class LineParseError(Exception):
+	pass
+
+
 # Same thing with this. 
 class helpCmd: 
 	def __init__(self, channel, cmd):
@@ -62,10 +66,19 @@ class cmdMsg:
 		self.isPrivate = isPrivate
 		self.conn = bot.conn
 
+
 # This is the big one. This is what gets passed to listeners. 
 # Here, the constructor actually does stuff. 
-# TODO: NICK events, and don't use the word 'type'
-class lineEvent:
+# BaseLineEvent should be treated as psuedo-abstract. It should
+# never be instantiated directly, only subclasses.
+class BaseLineEvent:
+
+	def __new__(cls, bot, line):
+		if cls is BaseLineEvent:
+			raise Exception('BaseLineEvent should never be instantiated directly')
+		else:
+			return object.__new__(cls)
+
 	def __init__(self, bot, line):
 		self.line = line.rstrip()
 		self.bot = bot
@@ -80,80 +93,121 @@ class lineEvent:
 		self.levelToStr = bot.levelToStr
 		self.linesplit = self.line.split(' ')
 		self.userString = ''
-		self.etype = ''
 		self.syscmd = bot.syscmd
 		self.hasPriv = bot.hasPriv
 
-		if self.linesplit[0] == 'PING':
-			self.etype = 'ping'
-			self.ping = self.line.split()
-			self.target = self.ping[1]
-			return
-		
-		if self.linesplit[0] == 'ERROR':
-			self.etype = 'error'
-			return
-		
-		if self.linesplit[1] == 'PART':
-			self.etype = 'part' 
-			self.userString = self.linesplit[0]
-			self.channel = self.linesplit[2]
-			if self.channel[:1] == ':':
-				self.channel = self.channel[1:]
-			if len(self.linesplit) >= 4:
-				self.reason = self.linesplit[3][1:]
 
-		if self.linesplit[1] == 'JOIN':
-			self.etype = 'join'
-			self.userString = self.linesplit[0]
-			self.channel = self.linesplit[2]
-			if self.channel[:1] == ':':
-				self.channel = self.channel[1:]
-			if len(self.linesplit) >= 4:
-				self.reason = self.linesplit[3][1:]
+class PingEvent(BaseLineEvent):
+	etype = 'ping'
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		self.ping = self.linesplit
+		self.target = self.ping[1]
 
-		if self.linesplit[1] =='NICK':
-			self.etype = 'nick'
-			self.userString = self.linesplit[0]
-			self.newNick = self.linesplit[2]
-		
-		if self.linesplit[1] =='QUIT':
-			self.etype = 'quit'
-			self.userString = self.linesplit[0]
-			self.reason = self.linesplit[2][1:]
+class ErrorEvent(BaseLineEvent):
+	etype = 'error'
 
-		if self.linesplit[1] == 'PRIVMSG':
-			self.etype = 'privmsg'
-			self.userString = self.linesplit[0]
-			self.channel = self.linesplit[2]
-			if self.channel[0] == '#':
-				self.isPrivate = False
-			else:
-				self.isPrivate = True
-			
-			if self.isPrivate:
-				self.channel = self.userString.split(':')[1].split('!')[0]
-
-			self.message = ' '.join(self.linesplit[3:])
-			if (self.message[0] == ':'):
-				self.message = self.message[1:]
-
-		"""
-		elif self.linesplit[1] in ('353'):
-			self.
-			"""
+class UserEvent(BaseLineEvent):
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		self.userString = self.linesplit[0]
+		self.nick, self.user, self.host = process_user_string(self.userString)
 
 
-		if self.userString:
-			part1 = self.userString.split(':')[1]
-			part2 = part1.split('!')
-			part3 = part2[1].split('@')
-			self.nick = part2[0]
-			self.user = part3[0]
-			self.realName = part3[1]
+def process_user_string(userString):
+		# TODO: replace this with a regex
+		# Line begins with a : so strip it
+		if userString[0] == ':':
+			userString = userString[1:]
+		# Separate 
+		split1 = userString.split('!')
+		split2 = split1[1].split('@')
+		nick = split1[0]
+		user = split2[0]
+		host = split2[1]
+		return nick, user, host
 
-		if not(self.etype):
-			self.etype = self.linesplit[1]
+
+# These have exactly the same format except the event type itself
+class JoinPartEvent(UserEvent):
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		self.userString = self.linesplit[0]
+		self.channel = self.linesplit[2]
+		if self.channel[:1] == ':':
+			self.channel = self.channel[1:]
+		if len(self.linesplit) >= 4:
+			self.reason = self.linesplit[3][1:]
+
+class JoinEvent(JoinPartEvent):
+	etype = 'join'
+
+
+class PartEvent(JoinPartEvent):
+	etype = 'part'
+
+
+class NickEvent(UserEvent):
+	etype = 'nick'
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		self.newNick = self.linesplit[2]
+
+
+class QuitEvent(UserEvent):
+	etype = 'quit'
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		reason = self.linesplit[2]
+		if reason[0] == ':':
+			reason = reason[1:]
+		self.reason = reason
+
+
+class PrivmsgEvent(UserEvent):
+	etype = 'privmsg'
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		self.channel = self.linesplit[2]
+		self.isPrivate = (self.channel[0] != '#')
+		if self.isPrivate:
+			self.channel = self.nick
+
+		self.message = ' '.join(self.linesplit[3:])
+		if (self.message[0] == ':'):
+			self.message = self.message[1:]
+
+
+class UnknownEvent(BaseLineEvent):
+	def __init__(self, bot, line):
+		super().__init__(bot, line)
+		self.etype = self.linesplit[1]
+
+
+# Mapping for events where the event type is established in the
+# first (#0) field of the event.
+etypeMap0 = {'PING': PingEvent, 'ERROR': ErrorEvent}
+# Mapping for events where the event type is established in the
+# second (#1) field of the event.
+etypeMap1 = {'PART': PartEvent, 'JOIN': JoinEvent,
+	'NICK': NickEvent, 'QUIT': QuitEvent, 'PRIVMSG': PrivmsgEvent}
+
+def lineEvent(bot, line):
+	linesplit = line.split(' ')
+	if len(linesplit) < 2:
+		raise classes.LineParseError('Line had less than two fields')
+	field0, field1 = linesplit[0:2]
+
+	try:
+		etypeCls = etypeMap0[field0]
+	except KeyError:
+		try:
+			etypeCls = etypeMap1[field1]
+		except KeyError:
+			etypeCls = UnknownEvent
+
+	return etypeCls(bot, line)
+
 
 # Given a nick, an explicit auth name, their level, and their permissions, 
 # construct an aUser object for them. 
