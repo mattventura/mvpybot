@@ -4,9 +4,9 @@ python:
 before_script:
   - pip install pep8
 script:
+  - pep8 .
   - cp config.py.example config.py
   - cp options.py.example options.py
   - cp users.example users
   - cp ausers.example ausers
-  - pep8 .
   - python3 tests.py

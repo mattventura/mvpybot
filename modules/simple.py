@@ -1,9 +1,11 @@
-#!?usr/bin/python
+#!/usr/bin/python
 
-enabled = 0
+enabled = False
+
 
 def register(r):
 	r.registerfunction('testfunc', simpleTestFunc)
 
+
 def simpleTestFunc(msg):
-	return('PRIVMSG %s :This is a simple function\n' %(msg.channel))
+	return('PRIVMSG %s :This is a simple function\n' % (msg.channel))

@@ -8,5 +8,4 @@ from test.linetoevent import *
 
 if __name__ == '__main__':
 	sys.path.insert(0, os.path.dirname(__file__))
-	#unittest.main(sys.modules['__main__'])
 	unittest.main()

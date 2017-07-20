@@ -1,23 +1,25 @@
 #!/usr/bin/python3
 
-enabled = 1
+enabled = True
+
+from modules.joinalerts_config import alerts as raw_alerts
+
 import options
 import time
 
+alerts = {k.lower(): v for k, v in raw_alerts.items()}
+
+
 def register(r):
 	r.addlistener('join', joinalerts)
-	
+
 
 def joinalerts(e):
 
-	alerts = {"nick_goes_here" : "Attention: nick_goes_here has entered the channel!" }
-
-	#print 'Running'
-	#print lineparts
-	#print lineparts[1]
-	#print lineparts[0].split('!')[0][1:]
-	for i in alerts:
-		if i.lower() == e.nick.lower():
-			senddata('PRIVMSG %s :%s\n' %(e.channel, alerts[i]))
-	
-
+	try:
+		alert = alerts[e.nick.lower()]
+	except KeyError:
+		# No alert for this person
+		return
+	else:
+		e.conn.privmsg(e.channel, alert)

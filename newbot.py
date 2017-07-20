@@ -1,28 +1,26 @@
 #!/usr/bin/python3
 
-#	MVpybot, a Python IRC bot.
-#	Copyright (C) 2009-2014 Matt Ventura
+# MVpybot, a Python IRC bot.
+# Copyright (C) 2009-2017 Matt Ventura
 #
-#	This program is free software: you can redistribute it and/or modify
-#	it under the terms of the GNU General Public License as published by
-#	the Free Software Foundation, either version 3 of the License, or
-#	(at your option) any later version.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#	This program is distributed in the hope that it will be useful,
-#	but WITHOUT ANY WARRANTY; without even the implied warranty of
-#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#	GNU General Public License for more details.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#	You should have received a copy of the GNU General Public License
-#	along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Not sure if this note is still relevant since I'm not the one who noticed it:
-#	A note:
-#	   Please do not try to run the bot in IDLE. Your system will slow down.
-#	   The bot will run much better just from the commandline version of Python.
-#	--Darren VanBuren
+# A note:
+#   Please do not try to run the bot in IDLE. Your system will slow down.
+#   The bot will run much better just from the commandline version of Python.
+# --Darren VanBuren
 
 # Required builtin python modules
 import sys
@@ -32,7 +30,6 @@ import os
 import time
 import random
 import inspect
-#import builtins
 import sharedstate
 import traceback
 from imp import reload
@@ -44,9 +41,11 @@ from classes import *
 
 import builtinfuncs
 
+
 def reload_all():
 	reload(builtinfuncs)
 	reload(classes)
+
 
 # Because sha is depreciated, we use the import ____ as ____ trickery
 # as well as try...except magic.
@@ -54,6 +53,7 @@ try:
 	from hashlib import sha1 as sha
 except ImportError:
 	from sha import sha as sha
+
 
 from subprocess import Popen, PIPE
 
@@ -70,9 +70,6 @@ sys.path.append("modules")
 
 class Bot(object):
 
-
-
-
 	def BotMain(self, botConn):
 		try:
 			self.BotInit()
@@ -85,12 +82,13 @@ class Bot(object):
 
 	def __init__(self, botConn):
 		self.conn = botConn
-		self.builtinFuncMap = {'test' : self.testFunc, 
-			'userinfo' : self.userinfoFunc, 'auth' : self.authFunc, 'auths' : self.authFunc, 'authenticate' : self.authFunc, 
-			'level' : self.levelFunc, 'deauth' : self.deauthFunc, 'register' : self.registerUserFunc, 
-			'pass' : self.passFunc, 'passwd' : self.passwdFunc, 'authdump' : self.authDump, 'errtest' : self.errTest,
-			'modules' : self.modFunc, 'help' : self.helpFunc, 'err' : self.errFunc, 'errors' : self.errFunc,
-			'reloadopts' : self.reloadOpts, 'reloadcfg' : self.reloadConfig, 'perm' : self.userMgmtFunc, 'user' : self.userMgmtFunc
+		self.builtinFuncMap = {
+			'test': self.testFunc,
+			'userinfo': self.userinfoFunc, 'auth': self.authFunc, 'auths': self.authFunc, 'authenticate': self.authFunc,
+			'level': self.levelFunc, 'deauth': self.deauthFunc, 'register': self.registerUserFunc,
+			'pass': self.passFunc, 'passwd': self.passwdFunc, 'authdump': self.authDump, 'errtest': self.errTest,
+			'modules': self.modFunc, 'help': self.helpFunc, 'err': self.errFunc, 'errors': self.errFunc,
+			'reloadopts': self.reloadOpts, 'reloadcfg': self.reloadConfig, 'perm': self.userMgmtFunc, 'user': self.userMgmtFunc
 		}
 
 	def BotInit(self):
@@ -99,7 +97,7 @@ class Bot(object):
 
 		self.showdbg('Initializing...')
 		self.showdbg('Loading modules...')
-		
+
 		# Initialize authlist
 		self.authlist = []
 		self.chanMap = {}
@@ -107,27 +105,27 @@ class Bot(object):
 		# This is where we load plugins
 		# The general plugin system is this:
 
-		# Functions are things called when a user tries to run a command, 
+		# Functions are things called when a user tries to run a command,
 		# but no built-in function is found for it. These register a function
-		# with the name that the user would type for the command. 
-		# These are passed a cmdMsg object. 
+		# with the name that the user would type for the command.
+		# These are passed a cmdMsg object.
 
 		# Helps are like commands, but are called when you use the help command,
-		# and no built-in help is available. These are passed a helpCMd object. 
+		# and no built-in help is available. These are passed a helpCMd object.
 
 		# Listeners handle certain events (or lack thereof). Listeners need to register
 		# for the type of event they want (like 'join', 'privmsg', or 'part'. They are
 		# passed a lineEvent object. You can also register for 'any' to listen
 		# on any event, or 'periodic' for when the bot receives no data from the server
-		# in a certain period of time. 
+		# in a certain period of time.
 
 		# See some of the included modules for examples. o
 
-		# Modules can declare a variable of 'enabled'. Set this to False to disable it. 
-		# If it is omitted, True is assumed. 
+		# Modules can declare a variable of 'enabled'. Set this to False to disable it.
+		# If it is omitted, True is assumed.
 
 		# These variables:
-		# funcregistry is a dictionary of functions, by command name. 
+		# funcregistry is a dictionary of functions, by command name.
 		# listenerregistry is a dictionary containing a list for each event type
 		# helpregistry is like funcregistry
 		# Each entry in these is a [modules, function] pair
@@ -153,20 +151,19 @@ class Bot(object):
 				self.library_dict[pname] = module
 				if hasattr(module, 'register') and getattr(module, 'enabled', 1):
 					regs = self
-					#builtins.lastMod = module
 					try:
 						getattr(module, 'register')(regs)
 					except:
 						self.showErr('Error registering plugin ' + pname)
 						self.reportErr(sys.exc_info())
-		
+
 		# Load the simple auth file if using implicit/simple auth
 		# This file needs to be formatted as such:
 		# username1 user
 		# username2 admin
 		# It must be a space in-between, and you must use the friendly-name
-		# user levels, rather than numbers. 
-		
+		# user levels, rather than numbers.
+
 		if not(self.conn.userAuth):
 			try:
 				with open('ausers') as f:
@@ -177,7 +174,7 @@ class Bot(object):
 						self.authlist.append(asUser(lineParts[0], int(lineParts[1]), lineParts[2:]))
 			except IOError:
 				self.ErrorAndStop('Error loading implicit auth list.', 255)
-			except: 
+			except:
 				self.ErrorAndStop('Unknown error while loading implicit auth list.', 255)
 
 		conn = self.conn
