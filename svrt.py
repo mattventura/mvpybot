@@ -57,7 +57,6 @@ class ircSrv:
 	def _recvRaw(self):
 		dataRaw = self.socket.recv(1024)
 		data = dataRaw.decode()
-		#print('Raw incoming: %s' %data)
 		return data
 
 	def recv(self):
@@ -92,7 +91,6 @@ class ircSrv:
 
 	def _sendToServerRaw(self, data):
 		if self.isConnected:
-			#print('Raw out: %s' %data)
 			encdata = data.encode()
 			self.socket.sendall(encdata)
 		else:
@@ -120,7 +118,6 @@ class ircSrv:
 		self.connSocket()
 		self.handShake()
 		self.waitForHsFinish()
-		#self.joinChans()
 		self.fullyDone = True
 
 	def disconnect(self):

@@ -1,11 +1,14 @@
 #!/usr/bin/python3
 
-enabled = 0
+enabled = False
+
 
 def register(r):
 	r.registerfunction("mynewfunc", newfunction)
 
 
-
 def newfunction():
-	return "PRIVMSG #bots :Hello"
+	"""
+	Example of a very basic function
+	"""
+	return "Hello"

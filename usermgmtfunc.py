@@ -1,20 +1,19 @@
-# Account management. 
+# Account management.
 # Supports querying and modifying levels and passwords, as well as adding
-# new users. 
+# new users.
 # TODO: Split the granting/denying logic here into separate functions
+
+
 def userMgmtFunc(self, msg):
-	
+
 	if not(hasPriv(msg.nick, 'acctMgmt', 20)):
 		return(config.privrejectgeneric)
-	
+
 	if len(msg.cmd) == 1:
 		return('''This function requires more arguments. See 'help user' for details.''')
 
-	
-
 	# Make a copy since we'll be changing this
 	args = msg.cmd[1:]
-	argsFull = args # Just in case
 
 	# First part: -u for user or -n for nick
 	# -n can only work when the user is logged in
@@ -25,7 +24,7 @@ def userMgmtFunc(self, msg):
 		user = False
 	else:
 		return('''Incorrect syntax. See 'help user' for details. ''')
-	
+
 	if len(args[0]) > 2:
 		name = args[0][2:]
 		args = args[1:]
@@ -35,7 +34,7 @@ def userMgmtFunc(self, msg):
 
 	if len(args) < 1:
 		return('''This function requires more arguments. See 'help user' for details.''')
-		
+
 	# Actions: level, privs/priv
 	if args[0] == 'level':
 		action = 0
@@ -48,7 +47,6 @@ def userMgmtFunc(self, msg):
 	else:
 		return('''Action must be 'add', 'level' or 'privs'.''')
 
-
 	if action == 0:
 		if len(args) == 0:
 			return('Not enough arguments.')
@@ -59,14 +57,14 @@ def userMgmtFunc(self, msg):
 				except UserNotFound:
 					return('That user was not found')
 				level = authEntry.level
-				return('User %s is level %s' %(name, str(level)))
-			else:	
+				return('User %s is level %s' % (name, level))
+			else:
 				try:
 					authEntry = getAuth(name)
 				except UserNotFound:
 					return('That user was not found')
 				level = authEntry.level
-				return('User %s is level %s' %(name, str(level)))
+				return('User %s is level %s' % (name, level))
 
 		elif args[0] == 'set':
 			try:
@@ -78,7 +76,7 @@ def userMgmtFunc(self, msg):
 					chgUserLvl(name, newLevel)
 				except UserNotFound:
 					return('User not found')
-				return('''Changed level for user '%s' to %s. ''' %(name, str(newLevel)))
+				return('''Changed level for user '%s' to %s. ''' % (name, newLevel))
 
 			else:
 				try:
@@ -93,15 +91,14 @@ def userMgmtFunc(self, msg):
 				except:
 					return('''Changed level for user, but couldn't update file.''')
 
-				return('''Changed level for nick '%s' to %s. ''' %(name, str(newLevel)))
+				return('''Changed level for nick '%s' to %s. ''' % (name, str(newLevel)))
 
 		else:
 			return('''Action must be 'get' or 'set'.''')
-					
-				
+
 	if action == 1:
 		if len(args) == 0:
-			return('Not enough arguments.')		
+			return('Not enough arguments.')
 		elif args[0] == 'get':
 			try:
 				if user:
@@ -112,11 +109,10 @@ def userMgmtFunc(self, msg):
 			except UserNotFound:
 				return('User not found.')
 
-			return('User %s has privileges: %s. ' %(name, formatPerms(authEntry.grant, authEntry.deny, ', ')))
-
+			return('User %s has privileges: %s. ' % (name, formatPerms(authEntry.grant, authEntry.deny, ', ')))
 
 		if args[0] == 'clear':
-			
+
 			if args[1:]:
 				if user:
 					try:
@@ -134,14 +130,13 @@ def userMgmtFunc(self, msg):
 						chgUserPrivs(name, grant, deny)
 					except UserNotFound:
 						return('User was found initially, but not when updating.')
-					return('Cleared privilege(s) from user %s.' %name)
+					return('Cleared privilege(s) from user %s.' % name)
 
 				else:
 					try:
 						authEntry = getAuth(name)
 					except UserNotFound:
 						return('User not found.')
-						
 
 					grant = authEntry.grant
 					deny = authEntry.deny
@@ -155,11 +150,9 @@ def userMgmtFunc(self, msg):
 						chgUserPrivs(authEntry.authName, grant, deny)
 					except UserNotFound:
 						return('Cleared privilege(s), but could not update file.')
-						
-					return('''Cleared privilege(s) for nick '%s'.''' %name)
-							
 
-					
+					return('''Cleared privilege(s) for nick '%s'.''' % name)
+
 			else:
 				if user:
 					try:
@@ -167,42 +160,42 @@ def userMgmtFunc(self, msg):
 					except UserNotFound:
 						return('User not found.')
 
-					return('Cleared special privileges for user %s.' %name)
+					return('Cleared special privileges for user %s.' % name)
 
 				else:
 					try:
 						authEntry = getAuth(name)
 					except UserNotFound:
 						return('Could not find that nick.')
-						
+
 					authEntry.grant = set()
 					authEntry.deny = set()
 					try:
 						chgUserPrivs(authEntry.authName, set(), set())
 					except UserNotFound:
 						return('Cleared special privileges for nick, but could not update file.')
-					return('Cleared special privileges for nick %s.' %name)
+					return('Cleared special privileges for nick %s.' % name)
 
 		if args[0] == 'grant':
-			
+
 			if args[1:]:
 				if user:
 					try:
 						authEntry = userLookup(name)
 					except UserNotFound:
 						return('User not found.')
-						
+
 					grant = authEntry.grant
 					deny = authEntry.deny
 					for i in args[1:]:
 						if i in deny:
 							deny.remove(i)
 						grant.add(i)
-					try: 
+					try:
 						chgUserPrivs(name, grant, deny)
 					except UserNotFound:
 						return('User was found initially but not while updating')
-					return('Changed privilege(s) for user %s.' %name)
+					return('Changed privilege(s) for user %s.' % name)
 				else:
 					try:
 						authEntry = getAuth(name)
@@ -216,17 +209,17 @@ def userMgmtFunc(self, msg):
 							deny.remove(i)
 						grant.add(i)
 
-					try: 
+					try:
 						chgUserPrivs(authEntry.authName, grant, deny)
 					except UserNotFound:
 						return('Changed privileges, but could not update file.')
-					return('''Changed privileges for nick '%s'.''' %name)
+					return('''Changed privileges for nick '%s'.''' % name)
 
-			else:				
+			else:
 				return('Not enough arguments.')
-	
+
 		if args[0] == 'deny':
-			
+
 			if args[1:]:
 				if user:
 					try:
@@ -245,7 +238,7 @@ def userMgmtFunc(self, msg):
 					except:
 						Raise(Exception('User was found initially, but not when updating.'))
 
-					return('Changed privilege(s) for user %s.' %name)
+					return('Changed privilege(s) for user %s.' % name)
 				else:
 					try:
 						authEntry = getAuth(name)
@@ -263,10 +256,10 @@ def userMgmtFunc(self, msg):
 						chgUserPrivs(authEntry.authName, grant, deny)
 					except UserNotFound:
 						return('Changed privileges, but could not update file.')
-					
-					return('''Changed privileges for nick '%s'.''' %name)
 
-			else:				
+					return('''Changed privileges for nick '%s'.''' % name)
+
+			else:
 				return('Not enough arguments.')
 
 	if action == 2:
@@ -277,6 +270,4 @@ def userMgmtFunc(self, msg):
 				addUser(name)
 			except UserAlreadyExistsError:
 				return('Error: User already exists')
-			return('Added user %s' %name)
-			
-
+			return('Added user %s' % name)

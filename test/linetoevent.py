@@ -2,13 +2,17 @@ import classes
 import unittest
 import newbot
 
+
 class DummyBot:
+
 	getlevel = object()
 	nick = object()
 	syscmd = object()
 	getlevel = object()
+
 	class conn:
 		send = object()
+
 	getLevelStr = object()
 	levelToStr = object()
 	showdbg = object()
@@ -38,8 +42,6 @@ class LineToEventTests(unittest.TestCase):
 		line = 'PING 12345'
 		le = classes.lineEvent(bot, line)
 		self.assertIsInstance(le, classes.PingEvent)
-		import pdb
-		#pdb.set_trace()
 		self.assertEqual(le.etype, 'ping')
 		self.assertEqual(le.target, '12345')
 

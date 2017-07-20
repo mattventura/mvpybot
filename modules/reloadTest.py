@@ -1,15 +1,14 @@
 #!/usr/bin/python3
 
-enabled = 0
+# Deprecated file for testing
 
-import random
+enabled = False
+
 
 def register(r):
 	print('I am being registered')
-#	r.addlistener('privmsg', reloadTestLs)
+	r.addlistener('privmsg', reloadTestLs)
 
 
 def reloadTestLs(e):
-	e.showdbg('Testing this module 4')
-	
-
+	e.showdbg('Testing this module')
